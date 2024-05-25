@@ -1,42 +1,102 @@
-import numpy as np
-from pyedflib import highlevel
-from sklearn.neural_network import MLPClassifier
-import pathlib
+import os
+import eeg_recording
+from datetime import datetime, timedelta
+from patient import patient
 
-DATASET_FOLDER = 'dataset' # Folder containing the dataset
-N_PATIENTS = 8 # Number of patients in the dataset
-N_RECORDINGS = [42, 38, 19, 19, 25, 29, 33, 31] # Number of recordings for each patient
-# TOTALE 284 FILE DI CUI:
-# file .edf = 42 + 38 + 19 + 19 + 25 + 29 + 33 + 31 = 236
-# file .seizure = 7 + 7 + 3 + 3 + 7 + 6 + 4 + 3 = 40
-# file summary = 8
-PATIENTS_ID = [1, 3, 7, 9, 10, 20, 21, 22] # ID of the patients in the dataset
+DATA_FOLDER = 'data'
+TIME_FORMAT = '%H:%M:%S'
 
-RECORDINGS_ID = [
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 37, 38, 39, 40, 41, 42, 43, 46],
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
-    [1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 30, 31, 38, 89],
-    [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 34, 59, 60, 68],
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 38, 51, 54, 77]
-    ]
+def convert_time(time_str, time_format=TIME_FORMAT):
+    """
+    Convert a string representing a time to a datetime object.
 
-dataset_path = pathlib.Path(DATASET_FOLDER).absolute()
+    Args:
+        time_str (string): string representing a time.
+        time_format (string, optional): format of the time string. Defaults to TIME_FORMAT.
 
-for i in range(N_PATIENTS):
-    for j in range(N_RECORDINGS[i]):
-        print(highlevel.read_edf(str(dataset_path / f'chb0{i+1}' / f'chb0{i+1}_{j+1:02d}.edf'))[0].shape)
+    Returns:
+        datetime: datetime object representing the time.
+    """
+    hour = int(time_str.split(':')[0])
+    if hour >= 24:
+        hour = f'{(hour - 24):02d}'
+        return datetime.strptime(hour + ':' + time_str[3:], TIME_FORMAT) + timedelta(days=1)
+    
+    return datetime.strptime(time_str, TIME_FORMAT)
 
-#signal = np.array(highlevel.read_edf(str(dataset_path / 'chb01' / 'chb01_01.edf'))[0])
+def read_summary_file(path, patient_id):
+    """
+    Read the summary file of a patient and return a list of eeg_recording objects.
+
+    Args:
+        path (string): path to the summary file of the patient.
+        patient_id (string): id of the patient.
+
+    Returns:
+        list: list of eeg_recording objects.
+    """
+    recordings = []
+
+    with open(path, 'r') as file:
+        lines = file.readlines()
+
+    it = iter(lines)
+    # read sampling rate
+    sampling_rate = next(it).split()[3]
+
+    # read channels
+    line = next(it)
+    while 'Channel 1:' not in line:
+        line = next(it)
+
+    channels = []
+    while line != '\n':
+        channels.append(line.split()[2])
+        line = next(it)
+    
+    # read recording description
+    for line in it:
+        if 'Channels changed' in line: # check if the channels are changed
+            channels = []
+            next(it)
+            line = next(it)
+            while line != '\n':
+                channels.append(line.split()[2])
+                line = next(it)
+            line = next(it)
+
+        # set recording parameters
+        id = line.split()[2].split('.')[0]
+        start = convert_time(next(it).split()[3])
+        end = convert_time(next(it).split()[3])
+        n_seizures = int(next(it).split()[5])
+
+        # read seizures
+        seizures = []
+        for _ in range(n_seizures):
+            seizure_start = next(it).split()
+            if patient_id == 'chb01' or patient_id == 'chb03':
+                seizure_start = seizure_start[3]
+            else:
+                seizure_start = seizure_start[4]
+
+            seizure_end = next(it).split()
+            if patient_id == 'chb01' or patient_id == 'chb03':
+                seizure_end = seizure_end[3]
+            else:
+                seizure_end = seizure_end[4]
+            seizures.append((seizure_start, seizure_end))
+        
+        recordings.append(eeg_recording.eeg_recording(id, channels, start, end, sampling_rate, n_seizures, seizures))
+        next(it, None)
+    return recordings
 
 
-
-
-# X = [[0., 0.], [1., 1.]]
-# y = [0, 1]
-# clf = MLPClassifier(solver='lbfgs', alpha=1e-5,
-#                     hidden_layer_sizes=(5, 2), random_state=1)
-# clf.fit(X, y)
-# print(clf.predict([[2., 2.], [-1., -2.]]))
+if __name__ == '__main__':
+    p_ids = os.listdir(DATA_FOLDER)
+    p_summaries = [os.path.join(DATA_FOLDER, id, f'{id}-summary.txt') for id in p_ids]
+    patients = []
+    for s in range(len(p_summaries)):
+        patients.append(
+            patient(p_ids[s],
+                    read_summary_file(p_summaries[s], p_ids[s])))
