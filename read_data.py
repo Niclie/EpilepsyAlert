@@ -1,12 +1,12 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import eeg_recording
-from patient import patient
+from patient import Patient as patient
 
 DATA_FOLDER = 'data'
 TIME_FORMAT = '%H:%M:%S'
 
-def convert_time(time_str, time_format=TIME_FORMAT):
+def convert_time(time_str, days_, last_date, time_format=TIME_FORMAT):
     """
     Convert a string representing a time to a datetime object.
 
@@ -17,12 +17,18 @@ def convert_time(time_str, time_format=TIME_FORMAT):
     Returns:
         datetime: datetime object representing the time.
     """
+
     hour = int(time_str.split(':')[0])
     if hour >= 24:
         hour = f'{(hour - 24):02d}'
-        return datetime.strptime(hour + ':' + time_str[3:], time_format) + timedelta(days=1)
-    
-    return datetime.strptime(time_str, time_format)
+        date = datetime.strptime(hour + ':' + time_str[3:], time_format)
+    else:
+        date = datetime.strptime(time_str, time_format)
+
+    if time(date.hour, date.minute, date.second) < time(last_date.hour, last_date.minute, last_date.second):
+        days_ += 1
+
+    return date + timedelta(days=days_), days_
 
 def read_summary_file(path, patient_id, time_format=TIME_FORMAT):
     """
@@ -44,17 +50,28 @@ def read_summary_file(path, patient_id, time_format=TIME_FORMAT):
     # read sampling rate
     sampling_rate = next(it).split()[3]
 
-    # read channels
+    # read channels: da modificare! #TODO
     line = next(it)
-    while 'Channel 1:' not in line:
+    while 'Channels' not in line:
         line = next(it)
+    next(it)
 
     channels = []
-    while line != '\n':
-        channels.append(line.split()[2])
-        line = next(it)
+    for line in it:
+        if line == '\n':
+            break
+
+        str = line.split()[2]
+        
+        if str == '.' or str == '-':
+            continue
+    
+        channels.append(str)
+
     
     # read recording description
+    last_date = datetime.strptime('00:00:00', time_format)
+    days = 0
     for line in it:
         if 'Channels changed' in line: # check if the channels are changed
             channels = []
@@ -67,8 +84,11 @@ def read_summary_file(path, patient_id, time_format=TIME_FORMAT):
 
         # set recording parameters
         id = line.split()[2].split('.')[0]
-        start = convert_time(next(it).split()[3], time_format)
-        end = convert_time(next(it).split()[3], time_format)
+        start, days = convert_time(next(it).split()[3], days, last_date, time_format)
+        last_date = start
+        end, days= convert_time(next(it).split()[3], days, last_date, time_format)
+        last_date = end
+
         n_seizures = int(next(it).split()[5])
 
         # read seizures
