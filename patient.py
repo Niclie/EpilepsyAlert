@@ -37,7 +37,7 @@ class Patient:
         """
         return next((rec for rec in self.recordings if rec.id == id), None)
     
-    def get_seizures_dateimes(self):
+    def get_seizures_datetimes(self):
         """
         Get the start and end datetimes of the seizures.
 
@@ -46,11 +46,6 @@ class Patient:
         """
         rec_reizures = self.get_seizure_recordings()
         return [rec.get_get_seizures_datetimes() for rec in rec_reizures]
-        # seizures = []
-        # for r in self.recordings:
-        #     if r.n_seizures > 0:
-        #         seizures.extend(r.get_seizure_times())
-        # return seizures
 
     def get_recording_by_datetime(self, time):
         """
@@ -67,7 +62,7 @@ class Patient:
                 return r
         return None
     
-    def get_interictal_preictal_datimes(self):
+    def get_interictal_preictal_datetimes(self):
         """
         Get the interictal and preictal times.
         """

@@ -1,79 +1,170 @@
-# import numpy as np
-# import mne
-# import pandas as pd
-# #from pyedflib import highlevel
-# #from sklearn.neural_network import MLPClassifier
-# #import pathlib
-# import time
+#n questo lavoro viene proposta una nuova tecnica di previsione delle crisi epilettiche !!!specifica per il paziente!!!, basata sull'apprendimento profondo e applicata alle registrazioni a lungo termine dell'elettroencefalogramma (EEG) del cuoio capelluto.
 
-# DATA_FOLDER = 'data'
-# N_PATIENTS = 8 # Number of patients in the dataset
-# N_RECORDINGS = [42, 38, 19, 19, 25, 29, 33, 31] # Number of recordings for each patient
-# # TOTALE 284 FILE DI CUI:
-# # file .edf = 42 + 38 + 19 + 19 + 25 + 29 + 33 + 31 = 236
-# # file .seizure = 7 + 7 + 3 + 3 + 7 + 6 + 4 + 3 = 40
-# # file summary = 8
-# PATIENTS_ID = [1, 3, 7, 9, 10, 20, 21, 22] # ID of the patients in the dataset
+#In questo studio abbiamo scelto otto soggetti in modo che i periodi interictali e preictali prestabiliti fossero soddisfatti, le registrazioni non fossero interrotte e fossero disponibili le registrazioni di tutti i canali.
 
-# RECORDINGS_ID = [
-#     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 31, 32, 33, 34, 36, 37, 38, 39, 40, 41, 42, 43, 46],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 30, 31, 38, 89],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 34, 59, 60, 68],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33],
-#     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 38, 51, 54, 77]
-#     ]
+#Per superare il problema dello squilibrio del set di dati, durante il processo di addestramento abbiamo selezionato un numero di segmenti interictali pari al numero di segmenti preictali disponibili. I segmenti interictali sono stati selezionati a caso dai campioni interictali complessivi.
 
-# def eeg_segmentation(patient, recording):
-#     edf_path = f'{DATA_FOLDER}/chb{patient:02d}/chb{patient:02d}_{recording:02d}.edf'
-#     raw = mne.io.read_raw_edf(edf_path, verbose='ERROR')
-#     print(raw.times.shape)
+# Attività celebrale classificabile in:
+#preictal state  : periodo di tempo prima della crisi. Durata: 1 ora
+#ictal state     : periodo di tempo durante la crisi.  Durata: variabile
+#postictal state : periodo di tempo dopo la crisi.     Durata: da definire
+#interictal state: periodo di tempo fra le crisi       Durata: almeno 4 ore
 
-# if __name__ == '__main__':
-#     eeg_segmentation(1, 1)
+#Obbiettivo: classificare lo stato preictal e interictal
 
-# # edf_path = 'dataset/chb01/chb01_01.edf'
-# # raw = mne.io.read_raw_edf(edf_path)
-# # print(raw.times)
-# # df = raw.to_data_frame()
-# # df.to_csv('chb01_01.csv', index=False)
-# # print(df.info())
+#stacco chb01 34 e 36
+
+from read_data import read_data
+#import make_dataset as mk
+#import os
+#from pathlib import Path
+import mne
+import pandas as pd
+import eeg_recording as eeg
+from datetime import timedelta as Timedelta
 
 
-# # def make_divisible_by_5(number):
-# #     remainder = number % 1280
-# #     if remainder == 0:
-# #         return number
+def print_eeg_info():
+    patients = read_data.read_data()
+    dataset_duration = 0
+    for p in patients:
+        print('Patient ID:', p.id)
+        recordings = p.recordings
+        seizure_time = 0
+        total_n_seizures = 0
+        total_duration = 0
+        for r in recordings:
+            total_duration += r.duration
+            total_n_seizures += r.n_seizures
+            for i in range(r.n_seizures):
+                seizure_time += r.seizures[i][1] - r.seizures[i][0]
+        print(f'Number of seizures: {total_n_seizures} | Total seizure time: {seizure_time} seconds ({seizure_time / 60:.2f} minutes) | Total duration: {total_duration} seconds ({total_duration / 3600:.2f} hours)\n')
+        dataset_duration += total_duration
+    print(f'Dataset duration: {dataset_duration} seconds ({dataset_duration / 3600:.2f} hours)')
+
+def print_eeg_info2():
+    patients = read_data.read_data()
+    for p in patients:
+        recordings = iter(p.recordings)
+        r = next(recordings)
+        next_r = next(recordings, None)
+        while next_r:
+            print(f'{next_r.id} - {r.id}, {next_r.file_start} - {r.file_end} = {(next_r.file_start - r.file_end).total_seconds()}')
+            r = next_r
+            next_r = next(recordings, None)
+        print()
+    return True
+
+def print_eeg_info3():
+    patients = read_data.read_data()
+    for p in patients:
+        print('Patient ID:', p.id)
+        recordings = iter(p.recordings)
+        for r in recordings:
+            print(f'{r.id}: {r.file_start} - {r.file_end}')
+        print()
+
+def media_distacco():
+    patients = read_data.read_data()
+    for p in patients:
+        print('Patient ID:', p.id)
+        recordings = iter(p.recordings)
+        r = next(recordings)
+        next_r = next(recordings, None)
+        sum = 0
+        i = 0
+        while next_r:
+            diff = (next_r.file_start - r.file_end).total_seconds()
+            if diff < 300:
+                sum += diff
+                i += 1
+            r = next_r
+            next_r = next(recordings, None)
+        print(f'Media: {sum / i}')
+        print()
+    return True
+
+def massimo_distacco():
+    patients = read_data.read_data()
+    for p in patients:
+        print('Patient ID:', p.id)
+        recordings = iter(p.recordings)
+        r = next(recordings)
+        next_r = next(recordings, None)
+        sum = 0
+        max_diff = 0
+        while next_r:
+            diff = (next_r.file_start - r.file_end).total_seconds()
+            if diff > max_diff:
+                id = (r.id, next_r.id)
+                max_diff = diff
+            r = next_r
+            next_r = next(recordings, None)
+        print(f'Massimo distacco: {max_diff}', id)
+        print()
+    return True
+
+
+def prova(recordings):
+    for r in recordings:
+        if r.n_seizures > 0:
+            print(r.id, r.file_start, r.file_end, r.n_seizures)
+            print(r.get_seizure_start()[0])
+            #print(r.seizures[0][0])
+
+    return True
+
+def extract_interticat_preictal(patient):
+    preictal_interictal = patient.getInterictalPreictalTimes()
+    file_start = patient.getRecordingByTime(preictal_interictal[0][0])
+    file_end = patient.getRecordingByTime(preictal_interictal[0][1])
+    raw = mne.io.read_raw_edf(f'data/{patient.id}/{file_start.id}.edf', verbose='ERROR')
+    raw.crop(tmin=(preictal_interictal[0][0] - file_start.file_start).total_seconds(), tmax=14399.9960)
     
-# #     return number - remainder
-    
-# # dataset_path = pathlib.Path(DATASET_FOLDER).absolute()
+    print(raw.n_times)
 
-# # dataset = []
-# # for i in range(N_PATIENTS):
-# #     for j in range(N_RECORDINGS[i]):
-# #         print('starting patient:', f'chb{PATIENTS_ID[i]:02d}', 'recording:', f'{RECORDINGS_ID[i][j]:02d}')
-# #         signal = np.array(highlevel.read_edf(str(dataset_path / f'chb{PATIENTS_ID[i]:02d}' / f'chb{PATIENTS_ID[i]:02d}_{RECORDINGS_ID[i][j]:02d}.edf'),
-# #                              verbose=True)[0])
-# #         #signal = np.round(signal[:, :], 5)
-# #         print('(channels, samples):',signal.shape)
+    # start = (preictal_interictal[0][0] - (patient.getRecordingByTime(preictal_interictal[0][0])).file_start).total_seconds()
+
+    # end = (preictal_interictal[0][1] - (patient.getRecordingByTime(preictal_interictal[0][1])).file_start).total_seconds()
+    # patient.getRecordingByTime(preictal_interictal[0][1])
+    # start = 
+    # end =
+    #raw = mne.io.read_raw_edf(f'data/{patient.id}/{patient.recordings[0].id}.edf', verbose='ERROR')
+
+    # seizure_start = patient.getSeizureTimes()
+    # print(len (patient.getInterictalPreictalTimes()))
+
+    #TODO:controlla che nelle 5 ore precedenti non ci siano crisi
+    #print((seizure_start[2][0] - seizure_start[1][1]).total_seconds())
+
+
+    #controlla che nelle 5 ore precedenti non ci siano crisi
+    # preictal_intericta_start = seizure_start[0][0] - Timedelta(hours=5)
+
+    # print(seizure_start[0][0])
+    # print(patient.getRecordingByTime(seizure_start[0][0]).id)
+    # print(preictal_intericta_start)
+    # print(patient.getRecordingByTime(preictal_intericta_start).id)
+
+    #rec_seizure = patient.getSeizureRecordings()
+    #[print(s.id) for s in seizure]
+
+    #print(first_seizure.id)
+    #[print(s.id) for s in seizure[1:]]
         
-# #         new_len = int(make_divisible_by_5(len(signal[0])))
-# #         if new_len < len(signal[0]):
-# #             signal = signal[:, :new_len]
-# #             print('cutting signal to', new_len, 'samples')
-# #         n_segments = int(new_len / 1280)
-# #         print('segment each channel in', n_segments, 'segments')
 
-# #         segmented_array = signal.reshape(23, n_segments, 1280)
-# #         for k in range(n_segments):
-# #             sample = np.transpose(segmented_array[:, k, :])
-# #             sample = sample.ravel()
-# #             dataset.append(sample)
-# #         print('done\n')
 
-# # np.save('dataset.npy', dataset)
-# # np.savetxt('dataset.csv', dataset, delimiter=',')
-# # NON FUNZIONA
+def main():
+    patients = read_data()
+    # extract_interticat_preictal(patients[2])
+    print(patients[2].get_seizures_datetimes())
+    return True
+
+if __name__ == '__main__':
+    main()
+
+# Attività celebrale classificabile in:
+#preictal state  : periodo di tempo prima della crisi. Durata: 1 ora
+#ictal state     : periodo di tempo durante la crisi.  Durata: variabile
+#postictal state : periodo di tempo dopo la crisi.     Durata: da definire
+#interictal state: periodo di tempo fra le crisi       Durata: almeno 4 ore
