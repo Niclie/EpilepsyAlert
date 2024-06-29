@@ -9,14 +9,15 @@ class EEGRec:
         Initialize the EEG recording.
 
         Args:
-            id (str): id of the recording.
+            id (str): ID of the recording.
             start (datetime): start datetime of the recording.
             end (datetime): end datetime of the recording.
-            n_seizures (int, optional): number of seizures. Defaults to 0.
-            seizures (list, optional): list of tuples with the start and end of the seizures. Defaults to [].
+            n_seizures (int): number of seizures in the recording.
+            seizures (list): list of tuples with the start and end of the seizures. Each tuple contains the start and end in seconds.
             channels (list): list of channels of the recording.
             sampling_rate (int): sampling rate of the recording.
         """
+
         self.id = id
         self.start = start
         self.end = end

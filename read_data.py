@@ -1,71 +1,98 @@
 import os
-from datetime import datetime, timedelta, time
-from eeg_recording import EEGRec
-from patient import Patient as patient
+from datetime import datetime, timedelta
 import re
+from eeg_recording import EEGRec
+from patient import Patient
+import constants
 
-DATA_FOLDER = 'data'
-TIME_FORMAT = '%H:%M:%S'
 
-def convert_time(time_str, days_, last_date, time_format=TIME_FORMAT):
+def convert_time(time_str, last_date, time_format = constants.TIME_FORMAT):
+    """
+    Convert the time string to a datetime object considering the last date for determining if the time is from the next day.
 
+    Args:
+        time_str (str): time string to convert.
+        last_date (datetime): last known date for determining if the time is from the next day.
+        time_format (str, optional): format of the time string. Defaults to constants.TIME_FORMAT.
+
+    Returns:
+        datetime: datetime object with the converted time.
+    """
 
     hour = int(time_str.split(':')[0])
     if hour >= 24:
         hour = f'{(hour - 24):02d}'
-        date = datetime.strptime(hour + ':' + time_str[3:], time_format)
+        converted_date = datetime.strptime(hour + ':' + time_str[3:], time_format)
     else:
-        date = datetime.strptime(time_str, time_format)
+        converted_date = datetime.strptime(time_str, time_format)
+    
+    converted_date = converted_date.replace(year=last_date.year, month=last_date.month, day=last_date.day)
+    if converted_date.time() < last_date.time():
+        converted_date += timedelta(days=1)
+    
+    return converted_date
 
-    if time(date.hour, date.minute, date.second) < time(last_date.hour, last_date.minute, last_date.second):
-        days_ += 1
 
-    return date + timedelta(days=days_), days_
+def load_summary_from_file(p_id,
+                           data_folder        = constants.DATA_FOLDER,
+                           time_format        = constants.TIME_FORMAT,
+                           channels_selector  = re.compile(constants.REGEX_CHANNEL_SELECTOR),
+                           file_info_pattern  = re.compile(constants.REGEX_FILE_INFO_PATTERN),
+                           base_info_selector = re.compile(constants.REGEX_BASE_INFO_SELECTOR),
+                           seizure_selector   = re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR)
+                           ):
+    """
+    Load the summary of the EEG recordings from the specified file. The file should be named as {p_id}-summary.txt.
 
+    Args:
+        p_id (str): patient ID.
+        data_folder (str, optional): folder where the data is stored. Defaults to constants.DATA_FOLDER.
+        time_format (str, optional): format of datetime. Defaults to constants.TIME_FORMAT.
+        channels_selector (str, optional): regex to select the channels. Defaults to re.compile(constants.REGEX_CHANNEL_SELECTOR).
+        file_info_pattern (str, optional): regex to select the sections that contain the information of each recording. Defaults to re.compile(constants.REGEX_FILE_INFO_PATTERN).
+        base_info_selector (str, optional): regex to select the base information of each recording. Defaults to re.compile(constants.REGEX_BASE_INFO_SELECTOR).
+        seizure_selector (str, optional): regex to select the seizure information. Defaults to re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR).
 
-def load_summary_from_file(p_id, data_folder=DATA_FOLDER):
+    Returns:
+        list: list of descriptions of the EEG recordings.
+    """
+    
     with open(os.path.join(data_folder, p_id, f'{p_id}-summary.txt'), 'r') as file:
         content = re.split(r'\*+', file.read())
 
-    #read sampling rate    
     sampling_rate = content[0].split()[3]
+
+    last_date = datetime.strptime('00:00:00', time_format)
+    rec_info = []
+    for split in content[2:]:
+        for file_info in file_info_pattern.findall(split):
+            id, rec_start, rec_end, n_seizures = base_info_selector.search(file_info).group(1, 2, 3, 4)
+            rec_start, rec_end = map(lambda t: convert_time(t, last_date), (rec_start, rec_end))
+            last_date = rec_end
+            rec_info.append(EEGRec(id, rec_start, rec_end, int(n_seizures),
+                                   [(int(s_start), int(s_end)) for (s_start, s_end) in seizure_selector.findall(file_info)],
+                                   channels_selector.findall(split),
+                                   sampling_rate))
     
-    channels_selector = re.compile(r'Channel \d*:\s*(.*)')
-
-    file_info_pattern = re.compile(r'File Name.*\nFile Start.*\nFile End.*\nNumber of Seizures.*\n(?:Seizure (?:\d+ )?Start.*\nSeizure (?:\d+ )?End.*\n?)*')
-    base_info_selector = re.compile(r'File Name:\s*(.*).edf\nFile Start Time:\s*(.*)\nFile End Time:\s*(.*)\nNumber of Seizures in File:\s*(\d+)')
-    seizure_selector = re.compile(r'Seizure (?:\d+ )?Start Time:\s*(\d+) seconds\nSeizure (?:\d+ )?End Time:\s*(\d+) seconds')
-
-    fileInfoList = [
-        EEGRec(
-            *base_info_selector.search(file_info).group(1, 2, 3, 4),
-            [(start, end) for (start, end) in seizure_selector.findall(file_info)],
-            channels_selector.findall(split),
-            sampling_rate
-        )
-        for split in content[2:] for file_info in file_info_pattern.findall(split)]
-    
-    return fileInfoList
+    return rec_info
 
 
-def load_summaries_from_folder(data_folder=DATA_FOLDER, time_format=TIME_FORMAT):
+def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format = constants.TIME_FORMAT):
     """
-    For each patient in data_folder, read the summary file and create a patient object.
+    Load the summaries of the EEG recordings from the specified folder. The files should be named as {p_id}-summary.txt.
 
     Args:
-        data_folder (_type_, optional): folder with the recordings of each patient. Defaults to DATA_FOLDER.
-        time_format (_type_, optional): format of the time. Defaults to TIME_FORMAT.
+        data_folder (str, optional): folder where the data is stored. Defaults to constants.DATA_FOLDER.
+        time_format (str, optional): format of datetime. Defaults to constants.TIME_FORMAT.
 
     Returns:
-        list: list of patient objects.
+        list: list of patients with their EEG recordings.
     """
-    p_ids = os.listdir(data_folder)
 
-    return [patient(id, load_summary_from_file(id, data_folder)) for id in p_ids]
+    p_ids              = os.listdir(data_folder)
+    channels_selector  = re.compile(constants.REGEX_CHANNEL_SELECTOR)
+    file_info_pattern  = re.compile(constants.REGEX_FILE_INFO_PATTERN)
+    base_info_selector = re.compile(constants.REGEX_BASE_INFO_SELECTOR)
+    seizure_selector   = re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR)
 
-
-def main():
-    load_summary_from_file('chb09')
-
-if __name__ == '__main__':
-    main()
+    return [Patient(id, load_summary_from_file(id, data_folder, time_format, channels_selector, file_info_pattern, base_info_selector, seizure_selector)) for id in p_ids]
