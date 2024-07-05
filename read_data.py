@@ -1,9 +1,13 @@
 import os
 from datetime import datetime, timedelta
 import re
+
+#import numpy as np
 from eeg_recording import EEGRec
 from patient import Patient
 import constants
+# import mne
+# import pandas
 
 
 def convert_time(time_str, last_date, time_format = constants.TIME_FORMAT):
@@ -74,10 +78,10 @@ def load_summary_from_file(p_id,
                                    channels_selector.findall(split),
                                    sampling_rate))
     
-    return rec_info
+    return Patient(p_id, rec_info)
 
 
-def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format = constants.TIME_FORMAT):
+def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format = constants.TIME_FORMAT, exclude = None):
     """
     Load the summaries of the EEG recordings from the specified folder. The files should be named as {p_id}-summary.txt.
 
@@ -89,10 +93,31 @@ def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format 
         list: list of patients with their EEG recordings.
     """
 
-    p_ids              = os.listdir(data_folder)
+    p_id_list = next(os.walk(data_folder))[1]
+
+    if exclude is not None:
+        p_id_list = [p_id for p_id in p_id_list if p_id not in exclude]
+
     channels_selector  = re.compile(constants.REGEX_CHANNEL_SELECTOR)
     file_info_pattern  = re.compile(constants.REGEX_FILE_INFO_PATTERN)
     base_info_selector = re.compile(constants.REGEX_BASE_INFO_SELECTOR)
     seizure_selector   = re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR)
 
-    return [Patient(id, load_summary_from_file(id, data_folder, time_format, channels_selector, file_info_pattern, base_info_selector, seizure_selector)) for id in p_ids]
+    return [load_summary_from_file(id, data_folder, time_format, channels_selector, file_info_pattern, base_info_selector, seizure_selector) for id in p_id_list]
+
+
+# def convert_edf_to_csv(path, start = None, end= None, channels=None):
+#     raw = mne.io.read_raw_edf(path, verbose='ERROR')
+#     # raw.crop(tmin=start, tmax=end)#TODO:da controllare
+#     #da convertire in csv
+#     header = ','.join(raw.ch_names)
+#     return np.savetxt('your_csv_file.csv', raw.get_data(picks = channels, tmin = start, tmax = end).T, delimiter=',', header=header)
+
+
+
+# # edf_path = 'dataset/chb01/chb01_01.edf'
+# # raw = mne.io.read_raw_edf(edf_path)
+# # print(raw.times)
+# # df = raw.to_data_frame()
+# # df.to_csv('chb01_01.csv', index=False)
+# # print(df.info())
