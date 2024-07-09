@@ -4,9 +4,7 @@ import pandas as pd
 
 # Attività celebrale classificabile in:
 #preictal state  : periodo di tempo prima della crisi. Durata: 1 ora
-#ictal state     : periodo di tempo durante la crisi.  Durata: variabile
-#postictal state : periodo di tempo dopo la crisi.     Durata: da definire
-#interictal state: periodo di tempo fra le crisi       Durata: almeno 4 ore
+#interictal state: periodo di tempo fra le crisi       Durata: almeno 4 ore prima dello stato preictale
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import src.data_preprocessing.load_data as load_data
