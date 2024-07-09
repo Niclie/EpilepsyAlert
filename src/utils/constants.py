@@ -1,6 +1,8 @@
-# Description: This file contains all the constants used in the project.
+#This file contains all the constants used in the project.
 
-DATA_FOLDER                 = 'data'
+DATA_FOLDER                 = 'data/raw'
+DATASET_FOLDER              = 'data/processed'
+
 TIME_FORMAT                 = '%H:%M:%S'
 
 REGEX_FILE_INFO_PATTERN     = r'File Name.*\nFile Start.*\nFile End.*\nNumber of Seizures.*\n(?:Seizure (?:\d+ )?Start.*\nSeizure (?:\d+ )?End.*\n?)*'

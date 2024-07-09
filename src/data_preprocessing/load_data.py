@@ -1,13 +1,9 @@
 import os
-from datetime import datetime, timedelta
 import re
-
-#import numpy as np
-from eeg_recording import EEGRec
-from patient import Patient
-import constants
-# import mne
-# import pandas
+import src.utils.constants as constants
+from datetime import datetime, timedelta
+from src.data_preprocessing.eeg_recording import EEGRec
+from src.data_preprocessing.patient import Patient
 
 
 def convert_time(time_str, last_date, time_format = constants.TIME_FORMAT):
@@ -58,7 +54,7 @@ def load_summary_from_file(p_id,
         seizure_selector (str, optional): regex to select the seizure information. Defaults to re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR).
 
     Returns:
-        list: list of descriptions of the EEG recordings.
+        Patient: patient with the EEG recordings.
     """
     
     with open(os.path.join(data_folder, p_id, f'{p_id}-summary.txt'), 'r') as file:
@@ -77,7 +73,7 @@ def load_summary_from_file(p_id,
                                    [(int(s_start), int(s_end)) for (s_start, s_end) in seizure_selector.findall(file_info)],
                                    channels_selector.findall(split),
                                    sampling_rate))
-    
+            
     return Patient(p_id, rec_info)
 
 
@@ -88,6 +84,7 @@ def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format 
     Args:
         data_folder (str, optional): folder where the data is stored. Defaults to constants.DATA_FOLDER.
         time_format (str, optional): format of datetime. Defaults to constants.TIME_FORMAT.
+        exclude (list, optional): list of patient IDs to exclude. Defaults to None.
 
     Returns:
         list: list of patients with their EEG recordings.
@@ -104,20 +101,3 @@ def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format 
     seizure_selector   = re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR)
 
     return [load_summary_from_file(id, data_folder, time_format, channels_selector, file_info_pattern, base_info_selector, seizure_selector) for id in p_id_list]
-
-
-# def convert_edf_to_csv(path, start = None, end= None, channels=None):
-#     raw = mne.io.read_raw_edf(path, verbose='ERROR')
-#     # raw.crop(tmin=start, tmax=end)#TODO:da controllare
-#     #da convertire in csv
-#     header = ','.join(raw.ch_names)
-#     return np.savetxt('your_csv_file.csv', raw.get_data(picks = channels, tmin = start, tmax = end).T, delimiter=',', header=header)
-
-
-
-# # edf_path = 'dataset/chb01/chb01_01.edf'
-# # raw = mne.io.read_raw_edf(edf_path)
-# # print(raw.times)
-# # df = raw.to_data_frame()
-# # df.to_csv('chb01_01.csv', index=False)
-# # print(df.info())
