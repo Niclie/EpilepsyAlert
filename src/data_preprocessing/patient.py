@@ -141,7 +141,7 @@ class Patient:
             phase_recordings = self.recordings[self.get_recording_index_by_datetime(start_datetime):self.get_recording_index_by_datetime(end_datetime) + 1]
             phase_data = []
 
-            raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[0].id}.edf', verbose = verbosity)
+            raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[0].id}.edf', verbose = verbosity, include = phase_recordings[0].channels)
             phase_data.append(raw.get_data(tmin = (start_datetime - phase_recordings[0].start).total_seconds(),
                                            tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T)
             
@@ -149,10 +149,10 @@ class Patient:
                 return np.concatenate((phase_data))
 
             for rec in phase_recordings[1:-1]:
-                raw = mne.io.read_raw_edf(in_path + f'/{rec.id}.edf', verbose = 'ERROR')
+                raw = mne.io.read_raw_edf(in_path + f'/{rec.id}.edf', verbose = 'ERROR', include = rec.channels)
                 phase_data.append(raw.get_data().T)
                 
-            raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[-1].id}.edf', verbose = 'ERROR')
+            raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[-1].id}.edf', verbose = 'ERROR', include = phase_recordings[-1].channels)
             phase_data.append(raw.get_data(tmax = (end_datetime - phase_recordings[-1].start).total_seconds()).T)
             
             return np.concatenate((phase_data))

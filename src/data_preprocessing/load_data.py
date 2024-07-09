@@ -71,7 +71,7 @@ def load_summary_from_file(p_id,
             last_date = rec_end
             rec_info.append(EEGRec(id, rec_start, rec_end, int(n_seizures),
                                    [(int(s_start), int(s_end)) for (s_start, s_end) in seizure_selector.findall(file_info)],
-                                   channels_selector.findall(split),
+                                   list(filter(lambda x: x != '-' ,channels_selector.findall(split))),
                                    sampling_rate))
             
     return Patient(p_id, rec_info)

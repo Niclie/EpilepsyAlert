@@ -8,22 +8,21 @@ import pandas as pd
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import src.data_preprocessing.load_data as load_data
+import src.utils.constants as constants
 
 
 def main():
     patients = load_data.load_summaries_from_folder()
-    print(patients[0].id)
-    print('ok')
-    #[patient.make_dataset() for patient in patients]
+    [patient.make_dataset() for patient in patients]
 
-    # for patient in patients:
-    #     print(patient.id)
-    #     try:
-    #         df = pd.read_parquet(f'dataset/{patient.id}.parquet')
-    #         print(df.head(1))
-    #     except FileNotFoundError:
-    #         print('No dataset found')
-    #     print("\n\n")
+    for patient in patients:
+        print(patient.id)
+        try:
+            df = pd.read_parquet(f'{constants.DATASET_FOLDER}/{patient.id}.parquet')
+            print(df.info())
+        except FileNotFoundError:
+            print('No dataset found')
+        print("\n\n")
 
 if __name__ == '__main__':
     main()
