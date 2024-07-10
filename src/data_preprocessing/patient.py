@@ -95,12 +95,12 @@ class Patient:
         return interictal_preictal
     
     
-    def get_continuous_recording_indexes(self, range_minute=5, start_index = 0, end_index = None):
+    def get_continuous_recording_indexes(self, range_minutes=5, start_index = 0, end_index = None):
         """
         Get a list of tuples with the start and end indexes of the continuous recordings. Two recordings are considered continuous if the difference between their end and start is less than range_minute minutes.
 
         Args:
-            range_minute (int, optional): minutes of difference between the end of a recording and the start of the next one to consider them continuous. Defaults to 5.
+            range_minutes (int, optional): minutes of difference between the end of a recording and the start of the next one to consider them continuous. Defaults to 5.
 
         Returns:
             list: list of tuples with the start and end indexes of the continuous recordings.
@@ -112,11 +112,11 @@ class Patient:
         continuous_recording_indexes = []
         start_segment = start_index
         for i, rec in enumerate(self.recordings[start_index + 1: end_index], start_index + 1):
-            if rec.start - self.recordings[i - 1].end > datetime.timedelta(minutes=range_minute) or rec.channels != self.recordings[i - 1].channels:
+            if rec.start - self.recordings[i - 1].end > datetime.timedelta(minutes=range_minutes) or rec.channels != self.recordings[i - 1].channels:
                 continuous_recording_indexes.append((start_segment, i - 1))
                 start_segment = i
         
-        if self.recordings[end_index].start - self.recordings[end_index-1].end <= datetime.timedelta(minutes=range_minute):
+        if self.recordings[end_index].start - self.recordings[end_index-1].end <= datetime.timedelta(minutes=range_minutes):
             continuous_recording_indexes.append((start_segment, end_index))
         else:
             continuous_recording_indexes.append((start_segment, end_index - 1))
@@ -127,7 +127,7 @@ class Patient:
 
     def make_dataset(self, in_path = constants.DATA_FOLDER, out_path = constants.DATASET_FOLDER):
         """
-        Create the dataset from the patient's recordings. The dataset will be saved in the specified folder with the name {patient_id}.parquet. It will contain data from the interictal and preictal states, with the class in the last column (0 for interictal and 1 for preictal). The interictal state will include data from 4 hours before the preictal state, and the preictal state will include data from 1 hour before the seizure. Only the group with the most recordings and the same channels will be considered. This group will be divided into segments where the recordings are continuous (less than 5 minutes between the end of one recording and the start of the next). The dataset will be in Parquet format to be read with pandas.
+        Create the dataset from the patient's recordings. The dataset will be saved in the specified folder with the name {patient_id}.parquet. It will contain data from the interictal and preictal states, with the class in the last column (0 for interictal and 1 for preictal). The interictal state will include data from 4 hours before the preictal state, and the preictal state will include data from 1 hour before the seizure. Only the group with the most recordings and the same channels will be considered. This group will be divided into segments where the recordings are continuous. The dataset will be in Parquet format to be read with pandas.
 
         Args:
             in_path (str, optional): path where the recordings are stored. Defaults to constants.DATA_FOLDER.
@@ -138,6 +138,17 @@ class Patient:
         """
 
         def retrive_data(start_datetime, end_datetime, verbosity = 'ERROR'):
+            """
+            Retrieve the data from the recordings between the specified datetimes.
+
+            Args:
+                start_datetime (datetime): datetime to start the data retrieval.
+                end_datetime (datetime): datetime to end the data retrieval.
+                verbosity (str, optional): verbosity of the mne.io.read_raw_edf function. Defaults to 'ERROR'.
+
+            Returns:
+                np.array: data from the recordings between the specified datetimes.
+            """
             phase_recordings = self.recordings[self.get_recording_index_by_datetime(start_datetime):self.get_recording_index_by_datetime(end_datetime) + 1]
             phase_data = []
 
@@ -173,11 +184,12 @@ class Patient:
 
         data = []
         class_index = len(recordings[0].channels)
-        for tuple_index in self.get_continuous_recording_indexes(start_index=start_rec, end_index=end_rec):
+        gap = self.get_max_gap_within_threshold()
+        for tuple_index in self.get_continuous_recording_indexes(range_minutes = gap, start_index = start_rec, end_index = end_rec):
             for sd in self.get_clean_seizure_datetimes(start_index = tuple_index[0], end_index = tuple_index[1],):
                 end_preictal = sd[0] - datetime.timedelta(seconds = 1)
                 start_preictal = end_preictal - datetime.timedelta(hours = 1)
-                end_interictal = start_preictal #!!!!!
+                end_interictal = start_preictal
                 start_interictal = end_preictal - datetime.timedelta(hours = 4)
 
                 interictal_data = retrive_data(start_interictal, end_interictal)
@@ -198,6 +210,22 @@ class Patient:
 
         return True
     
+
+    def get_max_gap_within_threshold(self, max_diff_minutes = 10):
+        """
+        Get the maximum gap between two recordings that is less than the specified threshold.
+
+        Args:
+            max_diff_minutes (int, optional): maximum difference in minutes between two recordings to consider them continuous. Defaults to 10.
+
+        Returns:
+            int: maximum gap between two recordings that is less than the specified threshold.
+        """
+        diff = [(self.recordings[i + 1].start - rec.end).total_seconds() / 60 for i, rec in enumerate(self.recordings[:-1])]
+        filtered_diff = list(filter(lambda x: x < max_diff_minutes, diff))
+
+        return max(filtered_diff)
+
 
     def __str__(self):
         return f'{self.id}: {len(self.recordings)} recordings'
