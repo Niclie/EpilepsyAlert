@@ -1,4 +1,5 @@
 #This file contains all the constants used in the project.
+ONE_SECOND_DATA             = 256
 
 DATA_FOLDER                 = 'data/raw'
 DATASET_FOLDER              = 'data/processed'

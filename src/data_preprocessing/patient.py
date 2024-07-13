@@ -125,19 +125,26 @@ class Patient:
         return continuous_recording_indexes
 
 
-    def make_dataset(self, in_path = constants.DATA_FOLDER, out_path = constants.DATASET_FOLDER):
+    def make_dataset(self, 
+                     in_path              = constants.DATA_FOLDER, 
+                     out_path             = constants.DATASET_FOLDER, 
+                     segment_size_seconds = 5, 
+                     balance              = True,
+                     compress             = False, 
+                     verbosity            = 'ERROR'):
         """
-        Create the dataset from the patient's recordings. The dataset will be saved in the specified folder with the name {patient_id}.parquet. It will contain data from the interictal and preictal states, with the class in the last column (0 for interictal and 1 for preictal). The interictal state will include data from 4 hours before the preictal state, and the preictal state will include data from 1 hour before the seizure. Only the group with the most recordings and the same channels will be considered. This group will be divided into segments where the recordings are continuous. The dataset will be in Parquet format to be read with pandas.
+        Create the dataset from the patient's recordings. The dataset will be saved in the specified folder with the name {patient_id}.parquet. It will contain data from the interictal and preictal states, with the class in the last column (0 for interictal and 1 for preictal). The interictal state will include data from 4 hours before the preictal state, and the preictal state will include data from 1 hour before the seizure. Only the group with the most recordings and the same channels will be considered. This group will be divided into segments where the recordings are continuous. The dataset will be in Parquet format to be read with pandas.#TODO
 
         Args:
             in_path (str, optional): path where the recordings are stored. Defaults to constants.DATA_FOLDER.
             out_path (str, optional): path where the dataset will be saved. Defaults to constants.DATASET_FOLDER.
+            #TODO
 
         Returns:
             bool: true if the dataset was created, False otherwise.
         """
 
-        def retrive_data(start_datetime, end_datetime, verbosity = 'ERROR'):
+        def retrive_data(start_datetime, end_datetime):
             """
             Retrieve the data from the recordings between the specified datetimes.
 
@@ -147,7 +154,7 @@ class Patient:
                 verbosity (str, optional): verbosity of the mne.io.read_raw_edf function. Defaults to 'ERROR'.
 
             Returns:
-                np.array: data from the recordings between the specified datetimes.
+                #TODO
             """
             phase_recordings = self.recordings[self.get_recording_index_by_datetime(start_datetime):self.get_recording_index_by_datetime(end_datetime) + 1]
             phase_data = []
@@ -165,8 +172,17 @@ class Patient:
                 
             raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[-1].id}.edf', verbose = 'ERROR', include = phase_recordings[-1].channels)
             phase_data.append(raw.get_data(tmax = (end_datetime - phase_recordings[-1].start).total_seconds()).T)
+
+            phase_data = np.concatenate((phase_data))
+
+            if segment_size_seconds:
+                n_samples = constants.ONE_SECOND_DATA * segment_size_seconds
+                n_segments = len(phase_data) // n_samples
+                n_channels = phase_data.shape[1]
+                phase_data = np.reshape(np.array([phase_data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)]),
+                                        (n_segments, n_samples * n_channels))
             
-            return np.concatenate((phase_data))
+            return phase_data
 
         if in_path == constants.DATA_FOLDER:
             in_path += f'/{self.id}'
@@ -182,34 +198,49 @@ class Patient:
         
         print(f'Creating dataset for {self.id}...')
 
+        n_preictal_segments = []
         data = []
-        class_index = len(recordings[0].channels)
-        gap = self.get_max_gap_within_threshold()
-        for tuple_index in self.get_continuous_recording_indexes(range_minutes = gap, start_index = start_rec, end_index = end_rec):
+        for tuple_index in self.get_continuous_recording_indexes(range_minutes=self.get_max_gap_within_threshold(), start_index=start_rec, end_index=end_rec):
             for sd in self.get_clean_seizure_datetimes(start_index = tuple_index[0], end_index = tuple_index[1],):
                 end_preictal = sd[0] - datetime.timedelta(seconds = 1)
                 start_preictal = end_preictal - datetime.timedelta(hours = 1)
                 end_interictal = start_preictal
-                start_interictal = end_preictal - datetime.timedelta(hours = 4)
+                start_interictal = end_interictal - datetime.timedelta(hours = 4)
 
                 interictal_data = retrive_data(start_interictal, end_interictal)
-                data.append(np.insert(interictal_data, class_index, 0, axis=1))
+                interictal_data = np.hstack((interictal_data, np.zeros((interictal_data.shape[0], 1))))
 
                 preictal_data = retrive_data(start_preictal, end_preictal)
-                data.append(np.insert(preictal_data, class_index, 1, axis=1))
+                preictal_data = np.hstack((preictal_data, np.ones((preictal_data.shape[0], 1))))
+                n_preictal_segments.append(len(preictal_data))
+
+                data.append(np.concatenate((interictal_data, preictal_data)))
         
         if data == []:
             print(f'No dataset created for {self.id}\n')
             return False
+        
+        if balance:
+            balanced_data = []
+            rng = np.random.default_rng()
+            for i, d in enumerate(data):
+                random_interictal = rng.choice(d[:len(d) - n_preictal_segments[i], :], size=n_preictal_segments[i], replace=False)
+                balanced_data.append(np.concatenate((random_interictal, d[len(d) - n_preictal_segments[i]:, :])))
+            
+            data = balanced_data
 
         start_time = time.time()
-        df = pd.DataFrame(np.concatenate((data)))
-        print(f'Creating file {self.id}.parquet...')
-        df.to_parquet(f'{out_path}/{self.id}.parquet')
+        print(f'Creating file for {self.id}...')
+
+        if compress:
+            np.savez_compressed(f'{out_path}/{self.id}.npz', *data)
+        else:
+            np.savez(f'{out_path}/{self.id}.npz', *data)
+
         print(f'File created in {time.time() - start_time:.2f} seconds\n')
 
-        return True
-    
+        return True #data #df
+
 
     def get_max_gap_within_threshold(self, max_diff_minutes = 10):
         """
