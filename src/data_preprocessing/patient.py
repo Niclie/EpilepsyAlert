@@ -3,7 +3,6 @@ import time
 import src.utils.constants as constants
 import mne
 import numpy as np
-import pandas as pd
 from collections import defaultdict
 
 
@@ -162,8 +161,8 @@ class Patient:
 
         n_preictal_segments = []
         data = []
-        for tuple_index in self.get_continuous_recording_indexes(range_minutes=self.get_max_gap_within_threshold(), start_index=start_rec, end_index=end_rec):
-            for sd in self.get_clean_seizure_datetimes(start_index = tuple_index[0], end_index = tuple_index[1],):
+        for tuple_index in self.get_continuous_recording_indexes(range_minutes=self.__get_max_gap_within_threshold(), start_index=start_rec, end_index=end_rec):
+            for sd in self.get_clean_seizure_datetimes(start_index = tuple_index[0], end_index = tuple_index[1]):
                 end_preictal = sd[0] - datetime.timedelta(seconds = 1)
                 start_preictal = end_preictal - datetime.timedelta(hours = 1)
                 end_interictal = start_preictal
@@ -198,7 +197,7 @@ class Patient:
 
         print(f'File created in {time.time() - start_time:.2f} seconds\n')
 
-        return True #data #df
+        return True
     
 
     def __retrive_data(self, in_path, start_datetime, end_datetime, segment_size_seconds, verbosity):
@@ -220,10 +219,13 @@ class Patient:
 
         raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[0].id}.edf', verbose = verbosity, include = phase_recordings[0].channels)
         phase_data.append(raw.get_data(tmin = (start_datetime - phase_recordings[0].start).total_seconds(),
-                                        tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T)
+                                       tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T)
         
         if len(phase_recordings) < 2:
-            return np.concatenate((phase_data))
+            if segment_size_seconds:
+                return self.__segment_data(np.concatenate((phase_data)), segment_size_seconds)
+            else:
+                return np.concatenate((phase_data))
 
         for rec in phase_recordings[1:-1]:
             raw = mne.io.read_raw_edf(in_path + f'/{rec.id}.edf', verbose = 'ERROR', include = rec.channels)
@@ -235,16 +237,23 @@ class Patient:
         phase_data = np.concatenate((phase_data))
 
         if segment_size_seconds:
-            n_samples = constants.ONE_SECOND_DATA * segment_size_seconds
-            n_segments = len(phase_data) // n_samples
-            n_channels = phase_data.shape[1]
-            phase_data = np.reshape(np.array([phase_data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)]),
-                                    (n_segments, n_samples * n_channels))
+            phase_data = self.__segment_data(phase_data, segment_size_seconds)
         
         return phase_data
 
 
-    def get_max_gap_within_threshold(self, max_diff_minutes = 10):
+    def __segment_data(self, data, segment_size_seconds):
+        n_samples = constants.ONE_SECOND_DATA * segment_size_seconds
+        n_segments = len(data) // n_samples
+        print(f'n_samples: {n_samples}, n_segments: {n_segments}, len(data): {len(data)}')
+        n_channels = data.shape[1]
+        return np.reshape(np.array([data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)]), 
+                          (n_segments, n_samples * n_channels))
+
+        
+
+
+    def __get_max_gap_within_threshold(self, max_diff_minutes = 10):
         """
         Get the maximum gap between two recordings that is less than the specified threshold.
 
@@ -266,4 +275,3 @@ class Patient:
 
     def __repr__(self):
         return self.__str__()
-    
