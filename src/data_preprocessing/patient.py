@@ -133,56 +133,19 @@ class Patient:
                      compress             = False, 
                      verbosity            = 'ERROR'):
         """
-        Create the dataset from the patient's recordings. The dataset will be saved in the specified folder with the name {patient_id}.parquet. It will contain data from the interictal and preictal states, with the class in the last column (0 for interictal and 1 for preictal). The interictal state will include data from 4 hours before the preictal state, and the preictal state will include data from 1 hour before the seizure. Only the group with the most recordings and the same channels will be considered. This group will be divided into segments where the recordings are continuous. The dataset will be in Parquet format to be read with pandas.#TODO
+        Create a dataset with the interictal and preictal states of the seizures of the patient. If segment_size_seconds is provided, the data will be segmented in segments of that size, if zero, the data will not be segmented. If balance is True, the dataset will be balanced with the same number of interictal and preictal segments. If compress is True, the dataset will be compressed.
 
         Args:
             in_path (str, optional): path where the recordings are stored. Defaults to constants.DATA_FOLDER.
             out_path (str, optional): path where the dataset will be saved. Defaults to constants.DATASET_FOLDER.
-            #TODO
+            segment_size_seconds (int, optional): size of the segments in seconds. Defaults to 5.
+            balance (bool, optional): balance the dataset. Defaults to True.
+            compress (bool, optional): compress the dataset. Defaults to False.
+            verbosity (str, optional): verbosity of the mne.io.read_raw_edf function. Defaults to 'ERROR'.
 
         Returns:
-            bool: true if the dataset was created, False otherwise.
+            bool: True if the dataset is created, False otherwise.
         """
-
-        def retrive_data(start_datetime, end_datetime):
-            """
-            Retrieve the data from the recordings between the specified datetimes.
-
-            Args:
-                start_datetime (datetime): datetime to start the data retrieval.
-                end_datetime (datetime): datetime to end the data retrieval.
-                verbosity (str, optional): verbosity of the mne.io.read_raw_edf function. Defaults to 'ERROR'.
-
-            Returns:
-                #TODO
-            """
-            phase_recordings = self.recordings[self.get_recording_index_by_datetime(start_datetime):self.get_recording_index_by_datetime(end_datetime) + 1]
-            phase_data = []
-
-            raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[0].id}.edf', verbose = verbosity, include = phase_recordings[0].channels)
-            phase_data.append(raw.get_data(tmin = (start_datetime - phase_recordings[0].start).total_seconds(),
-                                           tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T)
-            
-            if len(phase_recordings) < 2:
-                return np.concatenate((phase_data))
-
-            for rec in phase_recordings[1:-1]:
-                raw = mne.io.read_raw_edf(in_path + f'/{rec.id}.edf', verbose = 'ERROR', include = rec.channels)
-                phase_data.append(raw.get_data().T)
-                
-            raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[-1].id}.edf', verbose = 'ERROR', include = phase_recordings[-1].channels)
-            phase_data.append(raw.get_data(tmax = (end_datetime - phase_recordings[-1].start).total_seconds()).T)
-
-            phase_data = np.concatenate((phase_data))
-
-            if segment_size_seconds:
-                n_samples = constants.ONE_SECOND_DATA * segment_size_seconds
-                n_segments = len(phase_data) // n_samples
-                n_channels = phase_data.shape[1]
-                phase_data = np.reshape(np.array([phase_data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)]),
-                                        (n_segments, n_samples * n_channels))
-            
-            return phase_data
 
         if in_path == constants.DATA_FOLDER:
             in_path += f'/{self.id}'
@@ -194,7 +157,6 @@ class Patient:
 
         max_group = max(grouped_recordings.values(), key=len)
         start_rec, end_rec = max_group[0], max_group[-1]
-        recordings = self.recordings[start_rec:end_rec + 1]
         
         print(f'Creating dataset for {self.id}...')
 
@@ -207,10 +169,10 @@ class Patient:
                 end_interictal = start_preictal
                 start_interictal = end_interictal - datetime.timedelta(hours = 4)
 
-                interictal_data = retrive_data(start_interictal, end_interictal)
+                interictal_data = self.__retrive_data(in_path, start_interictal, end_interictal, segment_size_seconds, verbosity)
                 interictal_data = np.hstack((interictal_data, np.zeros((interictal_data.shape[0], 1))))
 
-                preictal_data = retrive_data(start_preictal, end_preictal)
+                preictal_data = self.__retrive_data(in_path, start_preictal, end_preictal, segment_size_seconds, verbosity)
                 preictal_data = np.hstack((preictal_data, np.ones((preictal_data.shape[0], 1))))
                 n_preictal_segments.append(len(preictal_data))
 
@@ -221,13 +183,10 @@ class Patient:
             return False
         
         if balance:
-            balanced_data = []
             rng = np.random.default_rng()
-            for i, d in enumerate(data):
-                random_interictal = rng.choice(d[:len(d) - n_preictal_segments[i], :], size=n_preictal_segments[i], replace=False)
-                balanced_data.append(np.concatenate((random_interictal, d[len(d) - n_preictal_segments[i]:, :])))
-            
-            data = balanced_data
+            data = [np.concatenate((rng.choice(d[:len(d) - n_preictal_segments[i], :], size=n_preictal_segments[i], replace=False), 
+                                    d[len(d) - n_preictal_segments[i]:, :])) 
+                    for i, d in enumerate(data)]
 
         start_time = time.time()
         print(f'Creating file for {self.id}...')
@@ -240,6 +199,49 @@ class Patient:
         print(f'File created in {time.time() - start_time:.2f} seconds\n')
 
         return True #data #df
+    
+
+    def __retrive_data(self, in_path, start_datetime, end_datetime, segment_size_seconds, verbosity):
+        """
+        Retrieve the data of the patient between the specified datetimes.
+
+        Args:
+            in_path (str): path where the recordings are stored.
+            start_datetime (datetime): start datetime.
+            end_datetime (datetime): end datetime.
+            segment_size_seconds (int): size of the segments in seconds.
+            verbosity (str): verbosity of the mne.io.read_raw_edf function.
+
+        Returns:
+            np.array: data of the patient between the specified datetimes.
+        """
+        phase_recordings = self.recordings[self.get_recording_index_by_datetime(start_datetime):self.get_recording_index_by_datetime(end_datetime) + 1]
+        phase_data = []
+
+        raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[0].id}.edf', verbose = verbosity, include = phase_recordings[0].channels)
+        phase_data.append(raw.get_data(tmin = (start_datetime - phase_recordings[0].start).total_seconds(),
+                                        tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T)
+        
+        if len(phase_recordings) < 2:
+            return np.concatenate((phase_data))
+
+        for rec in phase_recordings[1:-1]:
+            raw = mne.io.read_raw_edf(in_path + f'/{rec.id}.edf', verbose = 'ERROR', include = rec.channels)
+            phase_data.append(raw.get_data().T)
+            
+        raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[-1].id}.edf', verbose = 'ERROR', include = phase_recordings[-1].channels)
+        phase_data.append(raw.get_data(tmax = (end_datetime - phase_recordings[-1].start).total_seconds()).T)
+
+        phase_data = np.concatenate((phase_data))
+
+        if segment_size_seconds:
+            n_samples = constants.ONE_SECOND_DATA * segment_size_seconds
+            n_segments = len(phase_data) // n_samples
+            n_channels = phase_data.shape[1]
+            phase_data = np.reshape(np.array([phase_data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)]),
+                                    (n_segments, n_samples * n_channels))
+        
+        return phase_data
 
 
     def get_max_gap_within_threshold(self, max_diff_minutes = 10):
@@ -264,3 +266,4 @@ class Patient:
 
     def __repr__(self):
         return self.__str__()
+    
