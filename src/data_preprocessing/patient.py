@@ -125,25 +125,29 @@ class Patient:
 
 
     def make_dataset(self, 
-                     in_path              = constants.DATA_FOLDER, 
-                     out_path             = constants.DATASET_FOLDER, 
-                     segment_size_seconds = 5, 
+                     in_path              = constants.DATA_FOLDER,
+                     segment_size_seconds = 5,
                      balance              = True,
-                     compress             = False, 
+                     split                = True,
+                     save                 = True,
+                     out_path             = constants.DATASET_FOLDER,
+                     compress             = False,
                      verbosity            = 'ERROR'):
         """
-        Create a dataset with the interictal and preictal states of the seizures of the patient. If segment_size_seconds is provided, the data will be segmented in segments of that size, if zero, the data will not be segmented. If balance is True, the dataset will be balanced with the same number of interictal and preictal segments. If compress is True, the dataset will be compressed.
+        Create a dataset with the interictal and preictal states of the seizures of the patient.
 
         Args:
             in_path (str, optional): path where the recordings are stored. Defaults to constants.DATA_FOLDER.
+            segment_size_seconds (int, optional): size of the segments in seconds if None, the data will not be segmented. Defaults to 5.
+            balance (bool, optional): if True, the dataset will be balanced with the same number of interictal and preictal segments. Defaults to True.
+            split (bool, optional): if True, the dataset will be split into training and test datasets. Defaults to True..
+            save (bool, optional): if True, the dataset will be saved in a .npz file. Defaults to True.
             out_path (str, optional): path where the dataset will be saved. Defaults to constants.DATASET_FOLDER.
-            segment_size_seconds (int, optional): size of the segments in seconds. Defaults to 5.
-            balance (bool, optional): balance the dataset. Defaults to True.
-            compress (bool, optional): compress the dataset. Defaults to False.
+            compress (bool, optional): if True, the dataset will be saved in a compressed .npz file. Defaults to False.
             verbosity (str, optional): verbosity of the mne.io.read_raw_edf function. Defaults to 'ERROR'.
 
         Returns:
-            bool: True if the dataset is created, False otherwise.
+            dict: dictionary with the dataset.
         """
 
         if in_path == constants.DATA_FOLDER:
@@ -160,6 +164,7 @@ class Patient:
         print(f'Creating dataset for {self.id}...')
 
         n_preictal_segments = []
+        label = []
         data = []
         for tuple_index in self.get_continuous_recording_indexes(range_minutes=self.__get_max_gap_within_threshold(), start_index=start_rec, end_index=end_rec):
             for sd in self.get_clean_seizure_datetimes(start_index = tuple_index[0], end_index = tuple_index[1]):
@@ -169,35 +174,77 @@ class Patient:
                 start_interictal = end_interictal - datetime.timedelta(hours = 4)
 
                 interictal_data = self.__retrive_data(in_path, start_interictal, end_interictal, segment_size_seconds, verbosity)
-                interictal_data = np.hstack((interictal_data, np.zeros((interictal_data.shape[0], 1))))
+                interictal_label = np.zeros(interictal_data.shape[0])
 
                 preictal_data = self.__retrive_data(in_path, start_preictal, end_preictal, segment_size_seconds, verbosity)
-                preictal_data = np.hstack((preictal_data, np.ones((preictal_data.shape[0], 1))))
+                preictal_label = np.ones(preictal_data.shape[0])
                 n_preictal_segments.append(len(preictal_data))
 
                 data.append(np.concatenate((interictal_data, preictal_data)))
+                label.append(np.concatenate((interictal_label, preictal_label)))
         
         if data == []:
             print(f'No dataset created for {self.id}\n')
-            return False
+            return None
         
         if balance:
             rng = np.random.default_rng()
-            data = [np.concatenate((rng.choice(d[:len(d) - n_preictal_segments[i], :], size=n_preictal_segments[i], replace=False), 
-                                    d[len(d) - n_preictal_segments[i]:, :])) 
-                    for i, d in enumerate(data)]
+            for i, d in enumerate(data):
+                interictal_index = rng.choice(len(d) - n_preictal_segments[i], size=n_preictal_segments[i], replace=False)
+
+                data[i] = np.concatenate((d[interictal_index], d[len(d) - n_preictal_segments[i]:]))
+                label[i] = np.concatenate((label[i][interictal_index], 
+                                           label[i][len(d) - n_preictal_segments[i]:]))
+        
+        if split:
+            interictal_trainig_indexes = []
+            interictal_test_indexes = []
+            preictal_training_indexes = []
+            preictal_test_indexes = []
+
+            rng = np.random.default_rng()
+            for i, d in enumerate(data):
+                n_trainig_example = (len(d) * 80) // 100
+
+                interictal_trainig_indexes.append(rng.choice(len(d) - n_preictal_segments[i], size = n_trainig_example // 2, replace=False))
+                interictal_test_indexes.append(np.setdiff1d(np.arange(len(d) - n_preictal_segments[i]), interictal_trainig_indexes[i]))
+
+                preictal_training_indexes.append(rng.choice(np.arange(len(d) - n_preictal_segments[i], len(d)), size = n_trainig_example // 2, replace=False))
+                preictal_test_indexes.append(np.setdiff1d(np.arange(len(d) - n_preictal_segments[i], len(d)), preictal_training_indexes[i]))
+            
+            trainig_label = []
+            test_label = []
+
+            trainig_data = []
+            test_data = []
+            for i, d in enumerate(data):
+                trainig_data.extend([d[interictal_trainig_indexes[i]], d[preictal_training_indexes[i]]])
+                trainig_label.extend([label[i][interictal_trainig_indexes[i]], label[i][preictal_training_indexes[i]]])
+                test_data.extend([d[interictal_test_indexes[i]], d[preictal_test_indexes[i]]])
+                test_label.extend([label[i][interictal_test_indexes[i]], label[i][preictal_test_indexes[i]]])
+            
+            data = {'trainig_data': np.concatenate((trainig_data)), 
+                    'trainig_label': np.concatenate((trainig_label)), 
+                    'test_data': np.concatenate((test_data)), 
+                    'test_label': np.concatenate((test_label)), 
+                    'channels': self.recordings[start_rec].channels}
+        else:
+            data = {'data': np.concatenate((data)), 'label': np.concatenate((label)), 'channels': self.recordings[start_rec].channels}
+
 
         start_time = time.time()
         print(f'Creating file for {self.id}...')
 
-        if compress:
-            np.savez_compressed(f'{out_path}/{self.id}.npz', *data)
-        else:
-            np.savez(f'{out_path}/{self.id}.npz', *data)
+        if save:
+            filename = f'{out_path}/{self.id}.npz'
+            if compress:
+                np.savez_compressed(filename, **data)
+            else:
+                np.savez(filename, **data)
 
         print(f'File created in {time.time() - start_time:.2f} seconds\n')
 
-        return True
+        return data
     
 
     def __retrive_data(self, in_path, start_datetime, end_datetime, segment_size_seconds, verbosity):
@@ -243,14 +290,20 @@ class Patient:
 
 
     def __segment_data(self, data, segment_size_seconds):
+        """
+        Segment the data in segments of the specified size. 
+
+        Args:
+            data (np.array): data to segment.
+            segment_size_seconds (int): size of the segments in seconds.
+
+        Returns:
+            np.array: segmented data.
+        """
         n_samples = constants.ONE_SECOND_DATA * segment_size_seconds
         n_segments = len(data) // n_samples
-        print(f'n_samples: {n_samples}, n_segments: {n_segments}, len(data): {len(data)}')
-        n_channels = data.shape[1]
-        return np.reshape(np.array([data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)]), 
-                          (n_segments, n_samples * n_channels))
 
-        
+        return np.array([data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)])
 
 
     def __get_max_gap_within_threshold(self, max_diff_minutes = 10):
@@ -270,8 +323,20 @@ class Patient:
 
 
     def __str__(self):
+        """
+        String representation of the patient.
+
+        Returns:
+            str: string representation of the patient.
+        """
         return f'{self.id}: {len(self.recordings)} recordings'
     
 
     def __repr__(self):
+        """
+        Representation of the patient.
+
+        Returns:
+            str: representation of the patient.
+        """
         return self.__str__()
