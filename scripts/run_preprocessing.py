@@ -19,24 +19,22 @@ def get_dataset(patient_ids = None, load_from_file = False):
     """
     if not patient_ids:
         patients = load_data.load_summaries_from_folder()
-        if load_from_file:
-            data = [np.load(f'{constants.DATASET_FOLDER}/{p.id}.npz') for p in patients]
-        else:
-            data = [p.make_dataset() for p in patients]
     else:
-        if load_from_file:
-            data = [np.load(f'{constants.DATASET_FOLDER}/{p}.npz') for p in patient_ids]
-        else:
-            patients = [load_data.load_summary_from_file(p) for p in patient_ids]
-            data = [p.make_dataset() for p in patients]
+        patients = [load_data.load_summary_from_file(p) for p in patient_ids]
 
-    return data
+    if load_from_file:
+        data = []
+        for p in patient_ids:
+            npz = np.load(f'{constants.DATASET_FOLDER}/{p}.npz')
+            data.append({k: npz.get(k) for k in npz})
+            npz.close()
+        return data
+    
+    return [p.make_dataset() for p in patients]
+
 
 def main():
-    data = get_dataset(['chb01'])
-    print(data[0].keys())
-
-    return
-
+    data = get_dataset(['chb01'], True)
+    
 if __name__ == '__main__':
     main()
