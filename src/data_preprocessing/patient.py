@@ -130,7 +130,7 @@ class Patient:
                      balance              = True,
                      split                = True,
                      save                 = True,
-                     out_path             = constants.DATASET_FOLDER,
+                     out_path             = constants.DATASETS_FOLDER,
                      compress             = False,
                      verbosity            = 'ERROR'):
         """
@@ -142,7 +142,7 @@ class Patient:
             balance (bool, optional): if True, the dataset will be balanced with the same number of interictal and preictal segments. Defaults to True.
             split (bool, optional): if True, the dataset will be split into training and test datasets. Defaults to True..
             save (bool, optional): if True, the dataset will be saved in a .npz file. Defaults to True.
-            out_path (str, optional): path where the dataset will be saved. Defaults to constants.DATASET_FOLDER.
+            out_path (str, optional): path where the dataset will be saved. Defaults to constants.DATASETS_FOLDER.
             compress (bool, optional): if True, the dataset will be saved in a compressed .npz file. Defaults to False.
             verbosity (str, optional): verbosity of the mne.io.read_raw_edf function. Defaults to 'ERROR'.
 
@@ -174,10 +174,10 @@ class Patient:
                 start_interictal = end_interictal - datetime.timedelta(hours = 4)
 
                 interictal_data = self.__retrive_data(in_path, start_interictal, end_interictal, segment_size_seconds, verbosity)
-                interictal_label = np.zeros(interictal_data.shape[0])
+                interictal_label = np.zeros(interictal_data.shape[0], dtype=int)
 
                 preictal_data = self.__retrive_data(in_path, start_preictal, end_preictal, segment_size_seconds, verbosity)
-                preictal_label = np.ones(preictal_data.shape[0])
+                preictal_label = np.ones(preictal_data.shape[0], dtype=int)
                 n_preictal_segments.append(len(preictal_data))
 
                 data.append(np.concatenate((interictal_data, preictal_data)))
@@ -186,7 +186,7 @@ class Patient:
         if data == []:
             print(f'No dataset created for {self.id}\n')
             return None
-        
+
         if balance:
             rng = np.random.default_rng()
             for i, d in enumerate(data):
@@ -197,40 +197,45 @@ class Patient:
                                            label[i][len(d) - n_preictal_segments[i]:]))
         
         if split:
-            interictal_trainig_indexes = []
+            interictal_training_indexes = []
             interictal_test_indexes = []
             preictal_training_indexes = []
             preictal_test_indexes = []
 
             rng = np.random.default_rng()
             for i, d in enumerate(data):
-                n_trainig_example = (len(d) * 80) // 100
+                n_training_example = (len(d) * 80) // 100
 
-                interictal_trainig_indexes.append(rng.choice(len(d) - n_preictal_segments[i], size = n_trainig_example // 2, replace=False))
-                interictal_test_indexes.append(np.setdiff1d(np.arange(len(d) - n_preictal_segments[i]), interictal_trainig_indexes[i]))
+                interictal_training_indexes.append(rng.choice(len(d) - n_preictal_segments[i], size = n_training_example // 2, replace=False))
+                interictal_test_indexes.append(np.setdiff1d(np.arange(len(d) - n_preictal_segments[i]), interictal_training_indexes[i]))
 
-                preictal_training_indexes.append(rng.choice(np.arange(len(d) - n_preictal_segments[i], len(d)), size = n_trainig_example // 2, replace=False))
+                preictal_training_indexes.append(rng.choice(np.arange(len(d) - n_preictal_segments[i], len(d)), size = n_training_example // 2, replace=False))
                 preictal_test_indexes.append(np.setdiff1d(np.arange(len(d) - n_preictal_segments[i], len(d)), preictal_training_indexes[i]))
             
-            trainig_label = []
+            training_label = []
             test_label = []
 
-            trainig_data = []
+            training_data = []
             test_data = []
             for i, d in enumerate(data):
-                trainig_data.extend([d[interictal_trainig_indexes[i]], d[preictal_training_indexes[i]]])
-                trainig_label.extend([label[i][interictal_trainig_indexes[i]], label[i][preictal_training_indexes[i]]])
+                training_data.extend([d[interictal_training_indexes[i]], d[preictal_training_indexes[i]]])
+                training_label.extend([label[i][interictal_training_indexes[i]], label[i][preictal_training_indexes[i]]])
                 test_data.extend([d[interictal_test_indexes[i]], d[preictal_test_indexes[i]]])
                 test_label.extend([label[i][interictal_test_indexes[i]], label[i][preictal_test_indexes[i]]])
             
-            data = {'trainig_data': np.concatenate((trainig_data)), 
-                    'trainig_label': np.concatenate((trainig_label)), 
+            data = {'training_data': np.concatenate((training_data)), 
+                    'training_label': np.concatenate((training_label)), 
                     'test_data': np.concatenate((test_data)), 
                     'test_label': np.concatenate((test_label)), 
-                    'channels': self.recordings[start_rec].channels}
+                    'channels': np.array(self.recordings[start_rec].channels)}
+            
+            print(f'Training data shape: {data['training_data'].shape}')
         else:
-            data = {'data': np.concatenate((data)), 'label': np.concatenate((label)), 'channels': self.recordings[start_rec].channels}
-
+            data = {'data': np.concatenate((data)), 
+                    'label': np.concatenate((label)), 
+                    'channels': np.array(self.recordings[start_rec].channels)}
+            
+            print(f'Data shape: {data['data'].shape}')
 
         start_time = time.time()
         print(f'Creating file for {self.id}...')
@@ -266,7 +271,7 @@ class Patient:
 
         raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[0].id}.edf', verbose = verbosity, include = phase_recordings[0].channels)
         phase_data.append(raw.get_data(tmin = (start_datetime - phase_recordings[0].start).total_seconds(),
-                                       tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T)
+                                       tmax = (end_datetime - phase_recordings[0].start).total_seconds()).T * (10**4))
         
         if len(phase_recordings) < 2:
             if segment_size_seconds:
@@ -276,10 +281,10 @@ class Patient:
 
         for rec in phase_recordings[1:-1]:
             raw = mne.io.read_raw_edf(in_path + f'/{rec.id}.edf', verbose = 'ERROR', include = rec.channels)
-            phase_data.append(raw.get_data().T)
+            phase_data.append(raw.get_data().T * (10**4))
             
         raw = mne.io.read_raw_edf(in_path + f'/{phase_recordings[-1].id}.edf', verbose = 'ERROR', include = phase_recordings[-1].channels)
-        phase_data.append(raw.get_data(tmax = (end_datetime - phase_recordings[-1].start).total_seconds()).T)
+        phase_data.append(raw.get_data(tmax = (end_datetime - phase_recordings[-1].start).total_seconds()).T * (10**4))
 
         phase_data = np.concatenate((phase_data))
 

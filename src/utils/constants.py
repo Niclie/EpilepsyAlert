@@ -2,7 +2,10 @@
 ONE_SECOND_DATA             = 256
 
 DATA_FOLDER                 = 'data/raw'
-DATASET_FOLDER              = 'data/processed'
+DATASETS_FOLDER              = 'data/processed'
+
+MODELS_FOLDER               = 'results/models'
+PLOTS_FOLDER                = 'results/plots'
 
 TIME_FORMAT                 = '%H:%M:%S'
 
