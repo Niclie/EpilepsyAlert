@@ -1,8 +1,7 @@
-/data_processed_backup
-/results_backup
 /data
 /dataset
 *.csv
+*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
