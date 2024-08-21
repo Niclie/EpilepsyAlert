@@ -74,7 +74,7 @@ def get_uncompiled_cnn_rnn_model(input_shape):
     return keras.models.Model(inputs=input_layer, outputs=output_layer)
 
 
-def train_model(model, training_data, training_label, out_path, epochs=500, batch_size=32):
+def train_model(model, training_data, training_label, out_path, epochs=500, batch_size=32, early_stopping_patience = 50):
     """
     Trains a given model using the provided training data and labels.
 
@@ -98,7 +98,7 @@ def train_model(model, training_data, training_label, out_path, epochs=500, batc
             monitor="val_loss", factor=0.5, patience=20, min_lr=0.0001
         ),
         keras.callbacks.EarlyStopping(
-            monitor="val_loss", patience=50, verbose=1)
+            monitor="val_loss", patience = early_stopping_patience, verbose=1)
     ]
 
     model.compile(

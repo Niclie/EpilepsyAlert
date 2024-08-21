@@ -4,16 +4,16 @@ sys.path.append(os.path.abspath('.'))
 import numpy as np
 import src.data_preprocessing.load_data as load_data
 import src.utils.constants as constants
+from src.data_preprocessing.preprocess import make_dataset
 
 
-def get_dataset(patient_id, load_from_file = False, split_dataset = True):
+def get_dataset(patient_id, load_from_file = True):
     """
     Get the dataset for a given patient.
 
     Args:
         patient_id (str): the ID of the patient.
         load_from_file (bool, optional): whether to load the dataset from a file. Defaults to False.
-        split_dataset (bool, optional): whether to split the dataset. Defaults to True.
 
     Returns:
         dict: the dataset for the patient.
@@ -22,16 +22,24 @@ def get_dataset(patient_id, load_from_file = False, split_dataset = True):
     patient = load_data.load_summary_from_file(patient_id)
 
     if load_from_file:
-        data = {}
         try:
             npz = np.load(f'{constants.DATASETS_FOLDER}/{patient.id}.npz')
             data = {k: npz.get(k) for k in npz}
             npz.close()
         except:
             print(f'Dataset for {patient.id} not found')
-        print(f'Dataset shape: {data[list(data.keys())[0]].shape}')
+        
         return data
-    elif split_dataset:
-        return patient.make_dataset()
 
-    return patient.make_dataset(split = False)
+    return make_dataset(patient)
+
+
+def main():
+    # patients = ['chb01', 'chb02', 'chb03', 'chb04', 'chb05', 'chb06', 'chb07', 'chb08', 'chb09', 'chb10', 'chb11', 'chb12', 'chb13', 'chb14', 'chb15', 'chb16', 'chb17', 'chb18', 'chb19','chb20', 'chb21', 'chb22', 'chb23']
+
+    #patients_v2 = ['chb02', 'chb03', 'chb04', 'chb11', 'chb12', 'chb13', 'chb14', 'chb17', 'chb19','chb20', 'chb23'] #, 'chb24'
+
+    return
+
+if __name__ == '__main__':
+    main()

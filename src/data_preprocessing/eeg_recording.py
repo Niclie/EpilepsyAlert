@@ -1,4 +1,10 @@
+import sys
+import os
+sys.path.append(os.path.abspath('.'))
+
+import src.utils.constants as constants
 import datetime as dt
+from  mne.io import read_raw_edf
 
 
 class EEGRec:
@@ -38,6 +44,26 @@ class EEGRec:
         """
 
         return [(self.start + dt.timedelta(seconds=start), self.start + dt.timedelta(seconds=end)) for start, end in self.seizures]
+    
+
+    def retrive_data(self, in_path, start_seconds = 0, end_seconds = None, verbosity = 'ERROR', normalization_factor = 10**4):
+        """
+        Retrieve EEG data from a specified file path.
+        
+        Args:
+            in_path (str, optional): the file path to retrieve the data from. Defaults to constants.DATA_FOLDER.
+            start_seconds (int, optional): starting time in seconds to retrieve the data from. Defaults to 0.
+            end_seconds (int, optional): ending time in seconds to retrieve the data from. Defaults to None.
+            verbosity (str, optional): the level of verbosity for the data retrieval process. Defaults to 'ERROR'.
+            normalization_factor (int, optional): the normalization factor to apply to the retrieved data. Defaults to 10**4.
+
+        Returns:
+            numpy.ndarray: retrieved EEG data.
+        """
+
+        raw = read_raw_edf(in_path, verbose = verbosity, include = self.channels)
+
+        return raw.get_data(tmin = start_seconds, tmax = end_seconds).T * normalization_factor
 
 
     def __str__(self):

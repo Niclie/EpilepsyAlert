@@ -4,7 +4,7 @@ sys.path.append(os.path.abspath('.'))
 from src.model.train_model import get_uncompiled_cnn_model, get_uncompiled_cnn_rnn_model, train_model
 
 
-def run_training_cnn(training_data, label, out_path):
+def run_training_cnn(training_data, label, out_path, patience = 50):
     """
     Train a model with the given data and label.
 
@@ -18,7 +18,7 @@ def run_training_cnn(training_data, label, out_path):
     """
 
     model = get_uncompiled_cnn_model(input_shape=training_data.shape[1:])
-    history = train_model(model, training_data, label, out_path)
+    history = train_model(model, training_data, label, out_path, early_stopping_patience = patience)
 
     return history
 
