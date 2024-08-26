@@ -4,16 +4,16 @@ sys.path.append(os.path.abspath('.'))
 import numpy as np
 import src.data_preprocessing.load_data as load_data
 import src.utils.constants as constants
-from src.data_preprocessing.preprocess import make_dataset
+from src.data_preprocessing.preprocess import make_dataset, make_dataset_v2
 
 
-def get_dataset(patient_id, load_from_file = True):
+def get_dataset(patient_id, load_from_file = True, gamma_band = False):
     """
     Get the dataset for a given patient.
 
     Args:
         patient_id (str): the ID of the patient.
-        load_from_file (bool, optional): whether to load the dataset from a file. Defaults to False.
+        load_from_file (bool, optional): whether to load the dataset from a file. Defaults to True.
 
     Returns:
         dict: the dataset for the patient.
@@ -31,7 +31,7 @@ def get_dataset(patient_id, load_from_file = True):
         
         return data
 
-    return make_dataset(patient)
+    return make_dataset_v2(patient, use_gamma_band=gamma_band)
 
 
 def main():

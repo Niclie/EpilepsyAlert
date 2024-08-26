@@ -5,7 +5,7 @@ sys.path.append(os.path.abspath('.'))
 import keras
 
 
-def get_uncompiled_cnn_model(input_shape):
+def get_uncompiled_cnn(input_shape):
     """
     Creates an uncompiled CNN model.
 
@@ -37,44 +37,7 @@ def get_uncompiled_cnn_model(input_shape):
     return keras.models.Model(inputs=input_layer, outputs=output_layer)
 
 
-def get_uncompiled_cnn_rnn_model(input_shape):
-    """
-    Creates an uncompiled CNN-RNN model.
-
-    Args:
-        input_shape (tuple): shape of the input data.
-
-    Returns:
-        keras.models.Model: uncompiled CNN-RNN model.
-    """
-
-    input_layer = keras.layers.Input(input_shape)
-
-    # CNN layers
-    conv1 = keras.layers.Conv1D(filters=64, kernel_size=3, padding="same")(input_layer)
-    conv1 = keras.layers.BatchNormalization()(conv1)
-    conv1 = keras.layers.ReLU()(conv1)
-
-    conv2 = keras.layers.Conv1D(filters=64, kernel_size=3, padding="same")(conv1)
-    conv2 = keras.layers.BatchNormalization()(conv2)
-    conv2 = keras.layers.ReLU()(conv2)
-
-    conv3 = keras.layers.Conv1D(filters=64, kernel_size=3, padding="same")(conv2)
-    conv3 = keras.layers.BatchNormalization()(conv3)
-    conv3 = keras.layers.ReLU()(conv3)
-
-    # RNN layer
-    rnn = keras.layers.LSTM(64, return_sequences=False)(conv3)
-
-    dense = keras.layers.Dense(64, activation='relu')(rnn)
-    dropout = keras.layers.Dropout(0.5)(dense)
-
-    output_layer = keras.layers.Dense(1, activation="sigmoid")(dropout)
-
-    return keras.models.Model(inputs=input_layer, outputs=output_layer)
-
-
-def train_model(model, training_data, training_label, out_path, epochs=500, batch_size=32, early_stopping_patience = 50):
+def train_cnn(model, training_data, training_label, out_path, epochs=500, batch_size=32, early_stopping_patience = 50):
     """
     Trains a given model using the provided training data and labels.
 

@@ -46,7 +46,7 @@ class EEGRec:
         return [(self.start + dt.timedelta(seconds=start), self.start + dt.timedelta(seconds=end)) for start, end in self.seizures]
     
 
-    def retrive_data(self, in_path, start_seconds = 0, end_seconds = None, verbosity = 'ERROR', normalization_factor = 10**4):
+    def retrive_data(self, in_path, start_seconds = 0, end_seconds = None, verbosity = 'ERROR', gamma_band = False, normalization_factor = 10**4):
         """
         Retrieve EEG data from a specified file path.
         
@@ -61,7 +61,12 @@ class EEGRec:
             numpy.ndarray: retrieved EEG data.
         """
 
-        raw = read_raw_edf(in_path, verbose = verbosity, include = self.channels)
+        raw = read_raw_edf(in_path, verbose = verbosity, include = self.channels, preload=True)
+
+        if gamma_band:
+            raw.filter(l_freq=30, h_freq=127)
+
+        #raw.close()
 
         return raw.get_data(tmin = start_seconds, tmax = end_seconds).T * normalization_factor
 

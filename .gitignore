@@ -2,6 +2,8 @@
 /dataset
 *.csv
 *.txt
+test.py
+backup*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -6,8 +6,8 @@ import os
 from datetime import date, datetime
 
 
-def run(patient_id, patience = 50):
-    dataset = run_preprocessing.get_dataset(patient_id, False) #, load_from_file=True
+def run(patient_id, patience = 50, gamma_band = False):
+    dataset = run_preprocessing.get_dataset(patient_id, load_from_file=True, gamma_band=gamma_band) #, load_from_file=True
     train_data = dataset['train_data']
     train_labels = dataset['train_labels']
     test_data = dataset['test_data']
@@ -15,6 +15,7 @@ def run(patient_id, patience = 50):
 
     model_path = constants.MODELS_FOLDER
     history = run_training.run_training_cnn(train_data, train_labels, f'{model_path}/{patient_id}', patience = patience)
+    #history = run_training.run_model_lstm(train_data, train_labels, f'{model_path}/{patient_id}', patience = patience)
     
     plot_path = f'{constants.PLOTS_FOLDER}/{patient_id}'
     try:
@@ -49,13 +50,13 @@ def main():
     # for patient_id in patients[13:]:
     #     run(patient_id)
     
-    patient_id = 'chb15'
-    # run(patient_id, 10)
+    patient_id = 'chb06'
+    run(patient_id, gamma_band=True, patience=25)
 
-    for _ in range(5):
-        a, l = run(patient_id)
-        if a >= 0.75 and l <= 0.55:
-            break
+    # for _ in range(5):
+    #     a, l = run(patient_id)
+    #     if a >= 0.75 and l <= 0.55:
+    #         break
 
 
 if __name__ == '__main__':
