@@ -1,13 +1,9 @@
-import sys
 import os
-sys.path.append(os.path.abspath('.'))
-
 import re
-import src.utils.constants as constants
+from src.utils import constants
 from datetime import datetime, timedelta
 from src.data_preprocessing.eeg_recording import EEGRec
 from src.data_preprocessing.patient import Patient
-from collections import defaultdict
 
 
 def convert_time(time_str, last_date, time_format = constants.TIME_FORMAT):
@@ -105,12 +101,3 @@ def load_summaries_from_folder(data_folder = constants.DATA_FOLDER, time_format 
     seizure_selector   = re.compile(constants.REGEX_SEIZURE_INFO_SELECTOR)
 
     return [load_summary_from_file(id, data_folder, time_format, channels_selector, file_info_pattern, base_info_selector, seizure_selector) for id in p_id_list]
-
-def main():
-    patient = load_summary_from_file('chb09')
-    print(patient)
-
-    return
-
-if __name__ == '__main__':
-    main()

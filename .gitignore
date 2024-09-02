@@ -1,9 +1,6 @@
 /data
 /dataset
-*.csv
-*.txt
-test.py
-backup*
+interpatient_scheme.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

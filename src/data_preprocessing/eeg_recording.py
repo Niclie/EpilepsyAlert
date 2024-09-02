@@ -1,10 +1,5 @@
-import sys
-import os
-sys.path.append(os.path.abspath('.'))
-
-import src.utils.constants as constants
 import datetime as dt
-from  mne.io import read_raw_edf
+from mne.io import read_raw_edf
 
 
 class EEGRec:
@@ -46,7 +41,7 @@ class EEGRec:
         return [(self.start + dt.timedelta(seconds=start), self.start + dt.timedelta(seconds=end)) for start, end in self.seizures]
     
 
-    def retrive_data(self, in_path, start_seconds = 0, end_seconds = None, verbosity = 'ERROR', gamma_band = False, normalization_factor = 10**4):
+    def retrive_data(self, in_path, start_seconds = 0, end_seconds = None, verbosity = 'ERROR', n_channels = 23, normalization_factor = 10**4):
         """
         Retrieve EEG data from a specified file path.
         
@@ -55,20 +50,19 @@ class EEGRec:
             start_seconds (int, optional): starting time in seconds to retrieve the data from. Defaults to 0.
             end_seconds (int, optional): ending time in seconds to retrieve the data from. Defaults to None.
             verbosity (str, optional): the level of verbosity for the data retrieval process. Defaults to 'ERROR'.
+            n_channels (int, optional): the number of channels to retrieve. Defaults to 23.
             normalization_factor (int, optional): the normalization factor to apply to the retrieved data. Defaults to 10**4.
 
         Returns:
-            numpy.ndarray: retrieved EEG data.
+            numpy.ndarray: retrieved EEG data from the first n_channels.
         """
+        raw = read_raw_edf(in_path, verbose = verbosity)
+        channel_names = raw.info['ch_names']
+        channels_to_select = channel_names[:n_channels]
+        data = raw.get_data(tmin = start_seconds, tmax = end_seconds, picks=channels_to_select).T * normalization_factor
+        raw.close()
 
-        raw = read_raw_edf(in_path, verbose = verbosity, include = self.channels, preload=True)
-
-        if gamma_band:
-            raw.filter(l_freq=30, h_freq=127)
-
-        #raw.close()
-
-        return raw.get_data(tmin = start_seconds, tmax = end_seconds).T * normalization_factor
+        return data
 
 
     def __str__(self):

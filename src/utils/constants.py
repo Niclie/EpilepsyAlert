@@ -1,9 +1,8 @@
 #This file contains all the constants used in the project.
-ONE_SECOND_DATA             = 256
-
 DATA_FOLDER                 = 'data/raw'
-DATASETS_FOLDER              = 'data/processed'
+DATASETS_FOLDER             = 'data/processed'
 
+RESULTS_FOLDER              = 'results'
 MODELS_FOLDER               = 'results/models'
 PLOTS_FOLDER                = 'results/plots'
 

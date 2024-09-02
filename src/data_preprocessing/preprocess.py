@@ -1,90 +1,70 @@
 from datetime import timedelta
+from src.utils import constants
 import numpy as np
-import src.utils.constants as constants
 import time
 
 
-def calculate_duration(recordings, start_datetime, end_datetime):
-    hours = 0
-    for i, rec in enumerate(recordings):
-        if rec.start <= start_datetime <= rec.end:
-            if rec.start <= end_datetime <= rec.end:
-                return (end_datetime - start_datetime).total_seconds() / 3600
-            
-            hours += (rec.end - start_datetime).total_seconds() / 3600
-            break
-
-    for rec in recordings[i+1:]:
-        if rec.start <= end_datetime <= rec.end:
-            hours += (end_datetime - rec.start).total_seconds() / 3600
-            break
-        hours += (rec.end - rec.start).total_seconds() / 3600
-    
-    return hours
-
-
-def get_phase_datetimes(recordings, reference_datetime, duration, gap = 0):
-    end = reference_datetime - timedelta(seconds = gap)
-    reversed_recs = recordings[::-1]
-    for i, rec in enumerate(reversed_recs):
-        if rec.start <= end <= rec.end:
-            duration -= (end - rec.start).total_seconds() / 3600
-            break
-
-    if duration > 0:
-        for rec in reversed_recs[i+1:]:
-            duration -= (rec.end - rec.start).total_seconds() / 3600
-            if duration <= 0:
-                break
-    
-    start = rec.start + timedelta(hours=abs(duration)) if duration < 0 else rec.start
-
-    return start, end
-
-
-def make_dataset_v2(patient, 
-                 in_path = constants.DATA_FOLDER, 
+def make_dataset(patient, 
+                 in_path = constants.DATA_FOLDER,
+                 interictal_hour = 4,
+                 preictal_hour = 1,
                  segment_size = 5, 
                  balance = True, 
                  split = True, 
                  save = True, 
-                 out_path = constants.DATASETS_FOLDER, 
-                 use_gamma_band = False):
-    
+                 out_path = constants.DATASETS_FOLDER):
+    """
+    Create a dataset with the interictal and preictal states of the seizures of the patient.
+
+    Args:
+        patient (Patient): patient to create the dataset.
+        in_path (str, optional): path where the recordings are stored. Defaults to constants.DATA_FOLDER.
+        interictal_hour (int, optional): hours before the preictal state to consider as interictal. Defaults to 4.
+        preictal_hour (int, optional): hours before the seizure to consider as preictal. Defaults to 1.
+        segment_size (int, optional): size of the segments in seconds. Defaults to 5.
+        balance (bool, optional): whether to balance the data. Defaults to True.
+        split (bool, optional): whether to split the data into training and test sets. Defaults to True.
+        save (bool, optional): whether to save the dataset on a npz file. Defaults to True.
+        out_path (str, optional): path where to save the dataset. Defaults to constants.DATASETS_FOLDER.
+
+    Returns:
+        dict: dictionary with the dataset.
+    """
+
     if in_path == constants.DATA_FOLDER:
         in_path += f'/{patient.id}'
-
-    interictal_hour = 4
-    preictal_hour = 1
-    recordings = patient.recordings
-
-    seizures = []
-    for rec in recordings:
-        for s in rec.get_seizures_datetimes():
-            seizures.append(s)
-
-    if (seizures[0][0] - recordings[0].start).total_seconds() / 3600 >= 5 and (seizures[1][0] - seizures[0][1]).total_seconds() / 3600 >= 3:
-        return
     
+    interictal_hour = int(interictal_hour)
+    preictal_hour = int(preictal_hour)
+
+    if segment_size < 1:
+        print(f'No dataset created for {patient.id}, segment_size should be >= 1\n')
+        return None
+    
+    grouped_recordings = min_channel_recordings(patient, 23)
+    
+    sampling_rate = grouped_recordings[0][0].sampling_rate
+    n_interictal = int(((interictal_hour * 3600) * sampling_rate) / (segment_size * sampling_rate))
+
+    print(f'Creating dataset for {patient.id}...')
+
     data = []
-    last_seizure_end = recordings[0].start
-    for i, s in enumerate(seizures[:-1]):
-        if (s[0] - last_seizure_end).total_seconds() / 3600 >= 5 and (seizures[i+1][0] - s[1]).total_seconds() / 3600 >= 3:
-            start_preictal, end_preictal = get_phase_datetimes_2(recordings, s[0], preictal_hour)
-            start_interictal, end_interictal = get_phase_datetimes(recordings, start_preictal, interictal_hour, 0)
+    for recordings in grouped_recordings:
+        prev_seizure_end = recordings[0].start
+        for rec in recordings:
+            for s in rec.get_seizures_datetimes():
+                start_preictal, end_preictal = get_phase_datetimes(recordings, s[0], preictal_hour, mod = 'static', gap = 1)
+                start_interictal, end_interictal = get_phase_datetimes(recordings, start_preictal, interictal_hour, mod = 'dynamic', gap = 0)
 
-            interictal_data = retrive_data(recordings, in_path, start_interictal, end_interictal, use_gamma_band)
-            preictal_data = retrive_data(recordings, in_path, start_preictal, end_preictal, use_gamma_band)
-            if segment_size > 0:
-                interictal_data = segment_data(interictal_data, segment_size, rec.sampling_rate)
-                preictal_data = segment_data(preictal_data, segment_size, rec.sampling_rate)
+                if not(start_interictal <= prev_seizure_end <= end_preictal):
+                    temp_data = retrive_data(recordings, in_path, start_interictal, end_preictal, n_channels=23)
+                    temp_data = segment_data(temp_data, segment_size, sampling_rate)
+                    
+                    labels = (np.zeros(n_interictal), np.ones(len(temp_data) - n_interictal))
 
-            data.append((interictal_data, preictal_data))
-            
-        last_seizure_end = s[1]
-    
-    if (seizures[-1][0] - seizures[-2][1]).total_seconds() / 3600 >= 5 and (recordings[-1].end - seizures[-1][1]).total_seconds() / 3600 >= 3:
-        print(seizures[-1])
+                    data.append((temp_data, labels))
+
+                prev_seizure_end = s[1]
 
     if len(data) < 1:
         print(f'No dataset created for {patient.id}\n')
@@ -101,17 +81,11 @@ def make_dataset_v2(patient,
                 'test_data': test_data, 
                 'test_labels': test_labels, 
                 'channels': np.array(recordings[0].channels)}
-    
-        print(f'Training data shape: {data['train_data'].shape}')
-        print(f'Test data shape: {data['test_data'].shape}')
-        print(f'Gap size: {interictal_hour + preictal_hour}')
     else:
-        labels = [np.append(np.zeros(d[0].shape[0]), np.ones(d[1].shape[0])) for d in data]
-        data = {'data': np.vstack(np.array([np.vstack((d[0], d[1])) for d in data])),
+        labels = [np.append(d[1][0], d[1][1]) for d in data]
+        data = {'data': np.vstack([d[0] for d in data]),
                 'labels': np.hstack((labels)),
                 'channels': np.array(recordings[0].channels)}
-        
-        print(f'Data shape: {data['data'].shape}')
     
     if save:
         start_time = time.time()
@@ -125,166 +99,31 @@ def make_dataset_v2(patient,
     return data
 
 
-def make_dataset(patient, 
-                 in_path = constants.DATA_FOLDER, 
-                 segment_size = 5, 
-                 balance = True, 
-                 split = True, 
-                 save = True, 
-                 out_path = constants.DATASETS_FOLDER, 
-                 use_gamma_band = False):
+def min_channel_recordings(patient, n_channels):
     """
-    Create a dataset with the interictal and preictal states of the seizures of the patient.
+    Filter the recordings with the minimum number of channels.
 
     Args:
-        patient (Patient): patient object to create the dataset.
-        in_path (str, optional): path where the recordings are stored. Defaults to constants.DATA_FOLDER.
-        segment_size (int, optional): size of the segments in seconds if None, the data will not be segmented. Defaults to 5.
-        balance (bool, optional): if True, the dataset will be balanced with the same number of interictal and preictal segments. Defaults to True.
-        split (bool, optional): if True, the dataset will be split into training and test datasets. Defaults to True.
-        save (bool, optional): if True, the dataset will be saved in a .npz file. Defaults to True.
-        out_path (str, optional): path where the dataset will be saved. Defaults to constants.DATASETS_FOLDER.
+        patient (Patient): patient to filter the recordings.
+        n_channels (int): minimum number of channels.
 
     Returns:
-        dict: dictionary with the dataset.
+        list: list of recordings with the minimum number of channels.
     """
-
-    if in_path == constants.DATA_FOLDER:
-        in_path += f'/{patient.id}'
-
-    interictal_hour = 4
-    preictal_hour = 1
-    recordings = patient.recordings
-
-    print(f'Creating dataset for {patient.id}...')
-
-    data = []
-    prev_seizure_end = recordings[0].start
-    for i, rec in enumerate(recordings):
-        for s in rec.get_seizures_datetimes():
-            start_preictal, end_preictal = get_phase_datetimes_2(recordings, s[0], preictal_hour)
-            start_interictal, end_interictal = get_phase_datetimes(recordings, start_preictal, interictal_hour, 0)
-
-            if not(start_interictal <= prev_seizure_end <= end_preictal):
-                interictal_data = retrive_data(recordings, in_path, start_interictal, end_interictal, use_gamma_band)
-                preictal_data = retrive_data(recordings, in_path, start_preictal, end_preictal, use_gamma_band)
-                # if segment_size > 0:
-                #     interictal_data = segment_data(interictal_data, segment_size, rec.sampling_rate)
-                #     preictal_data = segment_data(preictal_data, segment_size, rec.sampling_rate)
-
-                # data.append((interictal_data, preictal_data))
-                print(f'Seizure start: {s[0]}, {rec.id}')
-                print(f'start_preictal -> end_preictal = {start_preictal} -> {end_preictal}')
-                print(f'start_interictal -> end_interictal = {start_interictal} -> {end_interictal}')
-                print(calculate_duration(recordings, start_preictal, end_preictal))
-                print(calculate_duration(recordings, start_interictal, end_interictal))
-
-            prev_seizure_end = s[1]
-    
-    # if len(data) < 1:
-    #     print(f'No dataset created for {patient.id}\n')
-    #     return None
-
-    # if balance:
-    #     data = balance_data(data)
-    
-    # if split:
-    #     train_data, train_labels, test_data, test_labels = split_data(data)
-
-    #     data = {'train_data': train_data, 
-    #             'train_labels': train_labels, 
-    #             'test_data': test_data, 
-    #             'test_labels': test_labels, 
-    #             'channels': np.array(recordings[0].channels)}
-    
-    #     print(f'Training data shape: {data['train_data'].shape}')
-    #     print(f'Test data shape: {data['test_data'].shape}')
-    #     print(f'Gap size: {interictal_hour + preictal_hour}')
-    # else:
-    #     labels = [np.append(np.zeros(d[0].shape[0]), np.ones(d[1].shape[0])) for d in data]
-    #     data = {'data': np.vstack(np.array([np.vstack((d[0], d[1])) for d in data])),
-    #             'labels': np.hstack((labels)),
-    #             'channels': np.array(recordings[0].channels)}
-        
-    #     print(f'Data shape: {data['data'].shape}')
-    
-    # if save:
-    #     start_time = time.time()
-    #     print(f'Creating file for {patient.id}...')
-
-    #     filename = f'{out_path}/{patient.id}.npz'
-    #     np.savez(filename, **data)
-        
-    #     print(f'File created in {time.time() - start_time:.2f} seconds\n')
-
-    # return data
-
-    # if in_path == constants.DATA_FOLDER:
-    #     in_path += f'/{patient.id}'
-    
-    # grouped_recordings, gap_size = max_channel_recordings(patient)
-    # interictal_hour = round((gap_size * 80)/100, 2)
-    # preictal_hour = gap_size - interictal_hour
-
-    # print(f'Creating dataset for {patient.id}...')
-    
-    # data = []
-    # for recordings in grouped_recordings:
-    #     last_seizure_end = recordings[0].start
-    #     for rec in recordings:
-    #         for s in rec.get_seizures_datetimes():
-    #             if s[0] - last_seizure_end >= timedelta(hours = gap_size):
-    #                 start_preictal, end_preictal = get_phase_datetimes(recordings, s[0], preictal_hour, 1)
-    #                 start_interictal, end_interictal = get_phase_datetimes(recordings, start_preictal, interictal_hour, 0)
-
-    #                 interictal_data = retrive_data(recordings, in_path, start_interictal, end_interictal, use_gamma_band)
-    #                 preictal_data = retrive_data(recordings, in_path, start_preictal, end_preictal, use_gamma_band)
-
-    #                 if segment_size > 0:
-    #                     interictal_data = segment_data(interictal_data, segment_size, rec.sampling_rate)
-    #                     preictal_data = segment_data(preictal_data, segment_size, rec.sampling_rate)
-
-    #                 data.append((interictal_data, preictal_data))
-                
-    #             last_seizure_end = s[1]
-
-    # if len(data) < 1:
-    #     print(f'No dataset created for {patient.id}\n')
-    #     return None
-
-    # if balance:
-    #     data = balance_data(data)
-    
-    # if split:
-    #     train_data, train_labels, test_data, test_labels = split_data(data)
-
-    #     data = {'train_data': train_data, 
-    #             'train_labels': train_labels, 
-    #             'test_data': test_data, 
-    #             'test_labels': test_labels, 
-    #             'channels': np.array(recordings[0].channels)}
-    
-    #     print(f'Training data shape: {data['train_data'].shape}')
-    #     print(f'Test data shape: {data['test_data'].shape}')
-    #     print(f'Gap size: {gap_size}')
-    # else:
-    #     labels = [np.append(np.zeros(d[0].shape[0]), np.ones(d[1].shape[0])) for d in data]
-    #     data = {'data': np.vstack(np.array([np.vstack((d[0], d[1])) for d in data])),
-    #             'labels': np.hstack((labels)),
-    #             'channels': np.array(recordings[0].channels)}
-        
-    #     print(f'Data shape: {data['data'].shape}')
-    
-    # if save:
-    #     start_time = time.time()
-    #     print(f'Creating file for {patient.id}...')
-
-    #     filename = f'{out_path}/{patient.id}.npz'
-    #     np.savez(filename, **data)
-        
-    #     print(f'File created in {time.time() - start_time:.2f} seconds\n')
-
-    # return data
+    recordings = patient.group_by_channels(keep_order = True)
+    cond = (False, 0)
+    filtered_recordings = []
+    for i, recs in enumerate(recordings):
+        if len(recs[0].channels) >= n_channels:
+            if cond[0]:
+                filtered_recordings[cond[1]].extend(recs)
+            else:
+                filtered_recordings.append(recs)
+                cond = (True, i)
+        else:
+            cond = (False, 0)
+            
+    return filtered_recordings
 
 
 def split_data(data, train_size = 80, test_size = 20):
@@ -304,7 +143,7 @@ def split_data(data, train_size = 80, test_size = 20):
             test_labels: the labels corresponding to the testing data.
     """
 
-    if train_size + test_size > 100: return
+    if train_size + test_size != 100: return
 
     train_data = []
     train_labels = []
@@ -313,15 +152,15 @@ def split_data(data, train_size = 80, test_size = 20):
 
     rng = np.random.default_rng()
     for d in data:
-        n_training = ((len(d[0]) + len(d[1])) * (train_size)) // 100
+        n_training = (len(d[0]) * train_size) // 100
 
-        interictal_train_indices, interictal_test_indices = split_indices_randomly(np.arange(len(d[0])), n_training // 2, rng)
-        preictal_train_indices, preictal_test_indices = split_indices_randomly(np.arange(len(d[1])), n_training // 2, rng)
+        interictal_train_indices, interictal_test_indices = split_indices_randomly(np.arange(len(d[1][0])), n_training // 2, rng)
+        preictal_train_indices, preictal_test_indices = split_indices_randomly(np.arange(len(d[1][0]), len(d[1][0]) + len(d[1][1])), n_training // 2, rng)
 
         train_data.append(
             np.vstack(
                 (np.array([d[0][i] for i in interictal_train_indices]), 
-                 np.array([d[1][i] for i in preictal_train_indices]))
+                 np.array([d[0][i] for i in preictal_train_indices]))
             )
         )
         
@@ -335,7 +174,7 @@ def split_data(data, train_size = 80, test_size = 20):
         test_data.append(
             np.vstack(
                 (np.array([d[0][i] for i in interictal_test_indices]), 
-                 np.array([d[1][i] for i in preictal_test_indices]))
+                 np.array([d[0][i] for i in preictal_test_indices]))
             )
         )
 
@@ -379,20 +218,15 @@ def balance_data(data):
         list: list of tuples with the balanced data.
     """
 
-    # balanced_data = []
-    # for d in data:
-    #     interictal_index = np.arange((len(d[1])))
-    #     interictal = np.array([d[0][i] for i in interictal_index])
-
-    #     balanced_data.append((interictal, d[1]))
-
     balanced_data = []
     rng = np.random.default_rng()
     for d in data:
-        random_interictal_index = rng.choice(len(d[0]), size = len(d[1]), replace = False)
+        random_interictal_index = rng.choice(len(d[1][0]), size = len(d[1][1]), replace = False)
         random_interictal = np.array([d[0][i] for i in random_interictal_index])
-
-        balanced_data.append((random_interictal, d[1]))
+        
+        balanced_data.append((np.append(random_interictal, d[0][len(d[1][0]):], axis=0),
+                              (d[1][0][:len(random_interictal_index)],
+                               d[1][1])))
 
     return balanced_data
 
@@ -415,7 +249,7 @@ def segment_data(data, segment_size, sampling_rate):
     return np.array([data[i * n_samples:(i + 1) * n_samples] for i in range(n_segments)])
 
 
-def retrive_data(recordings, in_path, start_datetime, end_datetime, gamma_band):
+def retrive_data(recordings, in_path, start_datetime, end_datetime, n_channels = 23):
     """
     Retrieve the data of the patient between the specified datetimes.
 
@@ -424,6 +258,7 @@ def retrive_data(recordings, in_path, start_datetime, end_datetime, gamma_band):
         in_path (str): path where the recordings are stored.
         start_datetime (datetime): start datetime.
         end_datetime (datetime): end datetime.
+        n_channels (int, optional): number of channels. Defaults to 23.
 
     Returns:
         np.array: data of the patient between the specified datetimes.
@@ -435,18 +270,18 @@ def retrive_data(recordings, in_path, start_datetime, end_datetime, gamma_band):
                 return rec.retrive_data(f'{in_path}/{rec.id}.edf', 
                                         start_seconds = (start_datetime - rec.start).total_seconds(), 
                                         end_seconds = (end_datetime - rec.start).total_seconds(),
-                                        gamma_band = gamma_band)
+                                        n_channels=n_channels)
             else:             
-                data = rec.retrive_data(f'{in_path}/{rec.id}.edf', start_seconds = (start_datetime - rec.start).total_seconds(), gamma_band = gamma_band)
+                data = rec.retrive_data(f'{in_path}/{rec.id}.edf', start_seconds = (start_datetime - rec.start).total_seconds(), n_channels=n_channels)
                 break
         
     for rec in recordings[i+1:]:
         if rec.start <= end_datetime <= rec.end:
-            rec_data = rec.retrive_data(f'{in_path}/{rec.id}.edf', end_seconds = (end_datetime - rec.start).total_seconds(), gamma_band = gamma_band)
+            rec_data = rec.retrive_data(f'{in_path}/{rec.id}.edf', end_seconds = (end_datetime - rec.start).total_seconds(), n_channels=n_channels)
             data = np.vstack((data, rec_data))
             return data
         else:
-            rec_data = rec.retrive_data(f'{in_path}/{rec.id}.edf', gamma_band = gamma_band)
+            rec_data = rec.retrive_data(f'{in_path}/{rec.id}.edf', n_channels=n_channels)
             data = np.vstack((data, rec_data))
 
 
@@ -480,154 +315,37 @@ def check_datetime(recordings, phase_datetime, control = 'start'):
     return recordings[min_index].start
 
 
-def get_phase_datetimes_2(recordings, reference_datetime, duration, gap = 0):
-    end = reference_datetime - timedelta(seconds = gap)
-    start = end - timedelta(hours = duration)
-
-    return (check_datetime(recordings, start, control = 'start'), check_datetime(recordings, end, control = 'end'))
-#     """
-#     Returns the start and end datetimes for a given phase of recordings.
-    
-#     Args:
-#         recordings (list): list of recording datetimes.
-#         reference_datetime (datetime): reference datetime for the phase.
-#         duration (int): duration of the phase in hours.
-#         gap (int): gap in seconds before the end datetime.
-
-#     Returns:
-#         tuple: a tuple containing the start and end datetimes for the phase.
-#     """   
-
-#     end = reference_datetime - timedelta(seconds = gap)
-#     reversed_recs = recordings[::-1]
-#     for i, rec in enumerate(reversed_recs):
-#         if rec.start <= end <= rec.end:
-#             duration -= (end - rec.start).total_seconds() / 3600
-#             break
-
-#     if duration > 0:
-#         for rec in reversed_recs[i+1:]:
-#             duration -= (rec.end - rec.start).total_seconds() / 3600
-#             if duration <= 0:
-#                 break
-    
-#     start = rec.start + timedelta(hours=abs(duration)) if duration < 0 else rec.start
-
-#     return start, end
-
-
-def max_channel_recordings(patient):
+def get_phase_datetimes(recordings, reference_datetime, duration, mod, gap = 0):
     """
-    Filters and retains the group of recordings with the same channels that have the maximum number of preictal and interictal hours.
-
-    Args:
-        patient (Patient): patient object.
-
-    Returns:
-        tuple: tuple with the recordings and the gap in hours between seizures that maximizes the number of preictal and interictal hours.
-    """
-
-    recordings = []
-    grouped_recordings = patient.group_by_channels()
-    for recs_indexes in grouped_recordings.values():
-        #recs = patient.recordings[recs_indexes[0]:recs_indexes[-1] + 1] #TODO
-        recs = [patient.recordings[i] for i in recs_indexes]
-        consecutive_recs_group = get_consecutive_recordings(recs, range_minutes=get_max_gap_within_threshold(recs))
-        gaps = []
-        for cs in consecutive_recs_group:
-            gaps.extend(seizure_gaps(cs))
-
-        mean_gap = min(np.mean(gaps) if len(gaps) > 0 else 0, 5)
-
-        h1 = count_greater(gaps, mean_gap) * mean_gap
-        h2 = count_greater(gaps, 5) * 5
-        if h1 > h2:
-            recordings.append((consecutive_recs_group, mean_gap, h1))
-        else:
-            recordings.append((consecutive_recs_group, 5, h2))
-
-            
-    return max(recordings, key=lambda x: x[-1])[:-1]
-
-
-def count_greater(values, threshold):
-    """
-    Count the number of values greater than or equal to the threshold.
-
-    Args:
-        values (list): list of values.
-        threshold (int): threshold to compare the values with.
-
-    Returns:
-        int: number of values greater than or equal to the threshold.
-    """
-    return sum(1 for v in values if v >= threshold)
-
-
-def get_consecutive_recordings(recordings, range_minutes = 5):
-    """
-    Get the consecutive recordings that are separated by a gap greater than the specified range.
+    Get the start and end datetimes of the phase.
 
     Args:
         recordings (list): list of EEGrec objects.
-        range_minutes (int, optional): range in minutes to consider two recordings as consecutive. Defaults to 5.
+        reference_datetime (datetime): datetime to reference.
+        duration (int): duration of the phase in hours.
+        mod (str): mode to get the datetimes.
+        gap (int, optional): gap in seconds. Defaults to 0.
 
     Returns:
-        list: list of lists with the consecutive recordings.
+        _type_: _description_
     """
-    if len(recordings) < 2: return [recordings]
+    end = check_datetime(recordings, reference_datetime - timedelta(seconds = gap), control = 'end')
     
-    consecutive_recordings = []
-    start_segment = 0
-    for i, rec in enumerate(recordings[1:], 1):
-        if rec.start - recordings[i - 1].end > timedelta(minutes = range_minutes):
-            consecutive_recordings.append(recordings[start_segment:i])
-            start_segment = i
+    if mod.lower() == 'static':
+        start = check_datetime(recordings, end - timedelta(hours = duration), control = 'start')
+    elif mod.lower() == 'dynamic':
+        reversed_recs = recordings[::-1]
+        for i, rec in enumerate(reversed_recs):
+            if rec.start <= end <= rec.end:
+                duration -= (end - rec.start).total_seconds() / 3600
+                break
 
-    if start_segment == i:
-        consecutive_recordings.append([recordings[-1]])
-    else:
-        consecutive_recordings.append(recordings[start_segment:])
-
-    return consecutive_recordings
-
-
-def get_max_gap_within_threshold(recordings, max_diff_minutes = 10):
-    """
-    Get the maximum gap between two recordings that is less than the specified threshold.
-
-    Args:
-        recordings (list): list of EEGrec objects.
-        max_diff_minutes (int, optional): maximum difference in minutes between two recordings to consider them continuous. Defaults to 10.
-
-    Returns:
-        int: maximum gap between two recordings in minutes that is less than the specified threshold.
-    """
-
-    if len(recordings) < 2: return 0
-
-    diff = [(recordings[i + 1].start - rec.end).total_seconds() / 60 for i, rec in enumerate(recordings[:-1])]
-    filtered_diff = tuple(filter(lambda x: x <= max_diff_minutes, diff))
-
-    return max(filtered_diff)
-
-
-def seizure_gaps(recordings):
-    """
-    Calculates the time gaps in hours between seizures.
-
-    Args:
-        recordings (list): list of EEGrec objects.
-
-    Returns:
-        list: list of time gaps in hours between seizures.
-    """
-
-    gaps = []
-    last_seizure_end = recordings[0].start
-    for rec in recordings:
-        for s in rec.get_seizures_datetimes():
-            gaps.append((s[0] - last_seizure_end).total_seconds() / 3600)
-            last_seizure_end = s[1]
-
-    return gaps
+        if duration > 0:
+            for rec in reversed_recs[i+1:]:
+                duration -= (rec.end - rec.start).total_seconds() / 3600
+                if duration <= 0:
+                    break
+        
+        start = rec.start + timedelta(hours = abs(duration)) if duration < 0 else rec.start
+    
+    return start, end

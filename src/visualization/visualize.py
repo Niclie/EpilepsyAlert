@@ -1,4 +1,32 @@
 import matplotlib.pyplot as plt
+from src.utils import constants
+import os.path
+from datetime import date, datetime
+
+
+def log_metrics(patient_id, n_training, n_test, accuracy, loss, file_path = f'{constants.RESULTS_FOLDER}/results.csv'):
+    """
+    Log the metrics of the model in a csv file.
+
+    Args:
+        patient_id (str): patient id.
+        n_training (int): number of training examples.
+        n_test (int): number of test examples.
+        accuracy (float): accuracy of the model.
+        loss (float): loss of the model.
+        file_path (str, optional): path to the csv file. Defaults to f'{constants.RESULTS_FOLDER}/results.csv'.
+    """
+    if not os.path.isfile(file_path):
+        f = open(file_path, 'w')
+        f.write('ID, Training examples, Test examples, Accuracy, Loss, Date, Time\n')
+    else:
+        f = open(file_path, 'a')
+        
+    day = date.today().strftime('%d/%m/%Y')
+    time = datetime.now().strftime('%H:%M:%S')
+    f.write(f'{patient_id}, {n_training}, {n_test}, {accuracy}, {loss}, {day}, {time}\n')
+
+    f.close()
 
 
 def visualize_data(data, label, classes):

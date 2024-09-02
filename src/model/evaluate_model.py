@@ -11,6 +11,6 @@ def evaluate_model(model, test_data, test_label):
         list: results of the evaluation.
     """
 
-    evaluation = model.evaluate(test_data, test_label, return_dict=True)
+    evaluation = model.evaluate(test_data, test_label, return_dict = True)
 
     return evaluation

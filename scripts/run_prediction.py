@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath('.'))
 from src.model.predict import predict
 from src.model.evaluate_model import evaluate_model
 
@@ -15,8 +12,7 @@ def run_evaluation(model, data, labels):
         labels (numpy.ndarray): the corresponding labels for the input data.
     """
 
-    e = evaluate_model(model, data, labels) 
-    return e
+    return evaluate_model(model, data, labels)
 
 
 def run_prediction(model, data):
@@ -28,4 +24,4 @@ def run_prediction(model, data):
         data (numpy.ndarray): the input data to make predictions on.
     """
     
-    predict(model, data)
+    return predict(model, data)

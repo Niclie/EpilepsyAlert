@@ -1,125 +1,114 @@
-import sys
-import os
-sys.path.append(os.path.abspath('.'))
-from src.data_preprocessing.load_data import load_summary_from_file, load_summaries_from_folder
-import src.data_preprocessing.preprocess as preprocess
-import numpy as np
-from datetime import timedelta
+from src.data_preprocessing import preprocess
 
 
-def generate_recordings_gap(patient):
-    f = open('output2.txt', 'a') 
-    f.write(f'{patient.id}:\n')
+def calculate_duration(recordings, start_datetime, end_datetime):
+    """
+    Calculate the duration between two datetimes in hours based on the data in the recordings.
 
-    recordings = preprocess.max_channel_recordings(patient)[0]
+    Args:
+        recordings (list): list of EEGRec.
+        start_datetime (datetime): start datetime.
+        end_datetime (datetime): end datetime.
+
+    Returns:
+        float: duration in hours.
+    """
+    hours = 0
+    for i, rec in enumerate(recordings):
+        if rec.start <= start_datetime <= rec.end:
+            if rec.start <= end_datetime <= rec.end:
+                return (end_datetime - start_datetime).total_seconds() / 3600
+            
+            hours += (rec.end - start_datetime).total_seconds() / 3600
+            break
+
+    for rec in recordings[i+1:]:
+        if rec.start <= end_datetime <= rec.end:
+            hours += (end_datetime - rec.start).total_seconds() / 3600
+            break
+        hours += (rec.end - rec.start).total_seconds() / 3600
+    
+    return hours
+
+
+def get_recordings_gap(patient):
+    """
+    Get the gap between recordings in seconds.
+
+    Args:
+        patient (Patient): patient object.
+
+    Returns:
+        list: list of gaps between recordings in seconds.
+    """
+    recordings = preprocess.min_channel_recordings(patient, 23)
 
     gap = []
     for recs in recordings:
         for i, r in enumerate(recs[1:], 1):
-            gap_val = (r.start - recs[i-1].end).total_seconds()
-            gap.append(gap_val)
-            f.write(f'{recs[i-1].id} -> {r.id} = {gap_val}\n')
-    
-    f.write(f'\nMean gap: {np.mean(gap)}')
-    f.write("\n\n\n")
-    f.close()
+            gap.append((r.start - recs[i-1].end).total_seconds())
+            
+    return gap
 
 
-def generate_groups(patient):
-    recordings = preprocess.max_channel_recordings(patient)[0]
-    #recordings = preprocess.get_consecutive_recordings(recordings, range_minutes=preprocess.get_max_gap_within_threshold(recordings))
+def get_interictal_preictal_duration(patient):
+    """
+    Get the duration of interictal + preictal phases in hours.
 
-    f = open('output2.txt', 'a') 
-    f.write(f'{patient.id}:\n')
+    Args:
+        patient (Patient): patient object.
 
-    for recs in recordings:
-        f.write(f'{recs[0].id} -> {recs[-1].id}\n')
+    Returns:
+        list: list of durations in hours
+    """
+    recordings = preprocess.min_channel_recordings(patient, 23)
 
-    f.write("\n\n\n")
-    f.close()
-
-def seizure_preictal_interictal_duration(patient, a):
-    recordings = preprocess.max_channel_recordings(patient)
-    gap_size = recordings[1]
-    recordings = recordings[0]
-    #recordings = preprocess.get_consecutive_recordings(recordings, range_minutes=preprocess.get_max_gap_within_threshold(recordings))
-    f = open('output2.txt', 'a')
-    f.write(f'{patient.id}:\n')
-
-    count = 0
     d = []
     for recs in recordings:
-        f.write(f'Block: {recs[0].id} -> {recs[-1].id}\n')
         last_seizure_end = recs[0].start
         for r in recs:
             for s in r.get_seizures_datetimes():
-                val = round((s[0] - last_seizure_end).total_seconds() / 3600, 3)
-                if val >= a:
-                    count += 1
-                d.append(val)
-                f.write(f'Seizure start {r.id} at {s[0]} =\t{val}\n')
+                d.append(round((s[0] - last_seizure_end).total_seconds() / 3600, 3))
                 last_seizure_end = s[1]
-        f.write('\n')
 
-    f.write(f'\nMean: {np.mean(d)}\n')
-    f.write(f'>{a}: {count}')
-    f.write("\n\n\n")
-    f.close()
-    return count
+    return d
 
 
-def group_recordings_by_channels(patient):
-    f = open('output2.txt', 'a') 
-    f.write(f'{patient.id}:\n')
+def get_seizures_datetimes(patient):
+    """
+    Get the datetimes of seizures.
 
-    recordings = patient.group_by_channels()
-    
-    for recs in recordings.values():
-        f.write(f'Channels: {patient.recordings[recs[0]].channels}\n')
-        for r in recs:
-            f.write(f'{patient.recordings[r].id}\n')
+    Args:
+        patient (Patient): patient object.
 
-    f.close()
-    return
-
-def generate_gaps(patients):
-    f = open('output2.txt', 'a') 
-    for p in patients:
-        f.write(f'{p.id}: {preprocess.max_channel_recordings(p)[1]}\n')
-
-    f.close()
-
-    return
-
-def generate_seizures_datetimes(patient):
-    f = open('output2.txt', 'a') 
-    f.write(f'{patient.id}\n')
+    Returns:
+        list: list of seizures datetimes.
+    """
+    sd = []
     for r in patient.recordings:
         for s in r.get_seizures_datetimes():
-            f.write(f'{r.id}: {s}\n')
+            sd.append(s)
+            
+    return sd
 
-    f.close()
 
-    return
+def print_recordings_dataset(patient):
+    """
+    Print a rappresentation of the dataset of the specified patient.
 
-def main():
-    # patients = load_summaries_from_folder(exclude='chb24')
-    # count = 0
-    # for p in patients:
-    #     a = seizure_preictal_interictal_duration(p, 4)
-    #     if a>0:
-    #         print(p.id, "\n")
-    #         count += 1
-    # print(count)
-    
-    id = 'chb06'
-    patient = load_summary_from_file(id)
-    #group_recordings_by_channels(patient)
-    #generate_recordings_gap(patient)
-    #generate_groups(patient)
-    generate_seizures_datetimes(patient)
-
-    return
-
-if __name__ == '__main__':
-    main()
+    Args:
+        patient (Patient): patient object.
+    """
+    grouped_recordings = preprocess.min_channel_recordings(patient, 23)
+    for recordings in grouped_recordings:
+        prev_seizure_end = recordings[0].start
+        for rec in recordings:
+            for s in rec.get_seizures_datetimes():
+                start_preictal, end_preictal = preprocess.get_phase_datetimes(recordings, s[0], 1, mod = 'static', gap = 1)
+                start_interictal, end_interictal = preprocess.get_phase_datetimes(recordings, start_preictal, 4, mod = 'dynamic', gap = 0)
+                
+                if not(start_interictal <= prev_seizure_end <= end_preictal):
+                    print(f'Seizure at {rec.id}:\nstart: {s[0]} -> end: {s[1]}\n')
+                    print(f'Preictal: {start_preictal} -> {end_preictal}\n')
+                    print(f'Interictal: {start_interictal} -> {end_interictal}\n\n')
+                prev_seizure_end = s[1]

@@ -36,21 +36,40 @@ class Patient:
                 for seizure_datetime in seizure_rec.get_seizures_datetimes()]
 
 
-    def group_by_channels(self):
+    def group_by_channels(self, keep_order = True):
         """
-        Groups the recordings by the channels.
+        Group the recordings by channels.
+
+        Args:
+            keep_order (bool, optional): whether to keep the order of the recordings. Defaults to True.
 
         Returns:
-            dict: dictionary where the keys are the channels and the values are lists of recording indexes.
+            list: list of recordings grouped by channels.
         """
+        if keep_order:
+            start = 0
+            recs = []
+            for i, r in enumerate(self.recordings[1:], 1):
+                if r.channels != self.recordings[i-1].channels:
+                    recs.append((self.recordings[start:i], len(self.recordings[start].channels)))
+                    start = i
 
-        recs = defaultdict(list)
-        for i, r in enumerate(self.recordings):
-            channels = tuple(r.channels)
-            recs[channels].append(i)
-
+            if self.recordings[-1].channels != self.recordings[-2].channels:
+                recs.append(([self.recordings[-1]], len(self.recordings[-1].channels)))
+            else:
+                recs.append((self.recordings[start:], len(self.recordings[start].channels)))
+            
+            recs = [r[0] for r in recs]
+        else:
+            recs = defaultdict(list)
+            for i, r in enumerate(self.recordings):
+                channels = tuple(r.channels)
+                recs[channels].append(r)
+                
+            recs = recs.values()
+        
         return recs
-
+    
 
     def __str__(self):
         """
