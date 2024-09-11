@@ -1,4 +1,10 @@
+import os
 from src.data_preprocessing import preprocess
+
+
+def check_folder(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 def calculate_duration(recordings, start_datetime, end_datetime):
@@ -13,22 +19,25 @@ def calculate_duration(recordings, start_datetime, end_datetime):
     Returns:
         float: duration in hours.
     """
-    hours = 0
+    seconds = 0
     for i, rec in enumerate(recordings):
         if rec.start <= start_datetime <= rec.end:
             if rec.start <= end_datetime <= rec.end:
-                return (end_datetime - start_datetime).total_seconds() / 3600
+                return (end_datetime - start_datetime).total_seconds()
             
-            hours += (rec.end - start_datetime).total_seconds() / 3600
+            seconds += (rec.end - start_datetime).total_seconds()
             break
 
     for rec in recordings[i+1:]:
         if rec.start <= end_datetime <= rec.end:
-            hours += (end_datetime - rec.start).total_seconds() / 3600
+            seconds += (end_datetime - rec.start).total_seconds()
             break
-        hours += (rec.end - rec.start).total_seconds() / 3600
+        seconds += (rec.end - rec.start).total_seconds()
+        
+    hours, remainder = divmod(seconds, 3600)  # Ottiene le ore e i secondi rimanenti
+    minutes, seconds = divmod(remainder, 60)  # Ottiene i minuti e i secondi rimanenti
     
-    return hours
+    return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}"
 
 
 def get_recordings_gap(patient):

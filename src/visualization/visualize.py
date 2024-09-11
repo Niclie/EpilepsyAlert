@@ -2,9 +2,10 @@ import matplotlib.pyplot as plt
 from src.utils import constants
 import os.path
 from datetime import date, datetime
+from src.utils.debug_utils import check_folder
 
 
-def log_metrics(patient_id, n_training, n_test, accuracy, loss, file_path = f'{constants.RESULTS_FOLDER}/results.csv'):
+def log_metrics(patient_id, model, n_training, n_test, accuracy, loss, file_path = f'{constants.RESULTS_FOLDER}/results.csv'):
     """
     Log the metrics of the model in a csv file.
 
@@ -18,13 +19,13 @@ def log_metrics(patient_id, n_training, n_test, accuracy, loss, file_path = f'{c
     """
     if not os.path.isfile(file_path):
         f = open(file_path, 'w')
-        f.write('ID, Training examples, Test examples, Accuracy, Loss, Date, Time\n')
+        f.write('ID, Model, Training examples, Test examples, Accuracy, Loss, Date, Time\n')
     else:
         f = open(file_path, 'a')
         
     day = date.today().strftime('%d/%m/%Y')
     time = datetime.now().strftime('%H:%M:%S')
-    f.write(f'{patient_id}, {n_training}, {n_test}, {accuracy}, {loss}, {day}, {time}\n')
+    f.write(f'{patient_id}, {model}, {n_training}, {n_test}, {accuracy}, {loss}, {day}, {time}\n')
 
     f.close()
 
@@ -48,7 +49,7 @@ def visualize_data(data, label, classes):
     plt.close()
 
 
-def plot_all_metrics(history, file_name):
+def plot_all_metrics(history, path, file_name):
     """
     Plot all metrics from the given history object and save the plots with the specified file name.
 
@@ -60,10 +61,10 @@ def plot_all_metrics(history, file_name):
     keys = list(history.history.keys())
     keys = keys[:len(keys)//2]
     for metric in keys:
-        plot_metric(history, metric, f'{file_name}_{metric}')
+        plot_metric(history, metric, path, f'{file_name}_{metric}')
 
 
-def plot_metric(history, metric, file_name):
+def plot_metric(history, metric, path, file_name):
     """
     Plot the specified metric from the given history object and save the plot with the specified file name.
 
@@ -72,7 +73,8 @@ def plot_metric(history, metric, file_name):
         metric (str): metric to be plotted.
         file_name (str): name of the file to save the plot.
     """
-
+    check_folder(path)
+    
     plt.figure()
     plt.plot(history.history[metric])
     plt.plot(history.history["val_" + metric])
@@ -81,5 +83,5 @@ def plot_metric(history, metric, file_name):
     plt.xlabel("epoch", fontsize="large")
     plt.legend(["train", "val"], loc="best")
     
-    plt.savefig(file_name)
+    plt.savefig(f'{path}/{file_name}')
     plt.close()

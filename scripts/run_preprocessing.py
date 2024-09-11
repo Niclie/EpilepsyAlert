@@ -4,7 +4,7 @@ from src.utils import constants
 from src.data_preprocessing.preprocess import make_dataset
 
 
-def get_dataset(patient_id, load_from_file = True):
+def get_dataset(patient_id, load_from_file = True, verbose = True):
     """
     Get the dataset for a given patient.
 
@@ -23,15 +23,16 @@ def get_dataset(patient_id, load_from_file = True):
             data = {k: npz.get(k) for k in npz}
             npz.close()
         except:
-            print(f'Dataset for {patient.id} not found')
+            if verbose: print(f'Dataset for {patient.id} not found')
             return None
     else:
         data = make_dataset(patient)
     
-    if 'train_data' in data.keys():
-        print(f'Training data shape: {data['train_data'].shape}')
-        print(f'Test data shape: {data['test_data'].shape}')
-    else:
-        print(f'Data shape: {data['data'].shape}')
+    if verbose:
+        if 'train_data' in data.keys():
+            print(f'Training data shape: {data['train_data'].shape}')
+            print(f'Test data shape: {data['test_data'].shape}')
+        else:
+            print(f'Data shape: {data['data'].shape}')
 
     return data
