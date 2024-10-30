@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 def build_mlp(input_shape):
     return tf.keras.models.Sequential([
         tf.keras.layers.Input(input_shape),
@@ -12,6 +11,49 @@ def build_mlp(input_shape):
     ])
     
     
+# def build_cnn(input_shape):
+#     """
+#     Builds a CNN model.
+
+#     Args:
+#         input_shape (tuple): shape of the input data.
+
+#     Returns:
+#         keras.models.Model: CNN model.
+#     """
+#     return tf.keras.models.Sequential([
+#             tf.keras.layers.Input(input_shape),
+            
+#             tf.keras.layers.Conv1D(filters=128, kernel_size=8, padding="same"),
+#             tf.keras.layers.BatchNormalization(),
+#             tf.keras.layers.ReLU(),
+            
+#             tf.keras.layers.Conv1D(filters=256, kernel_size=5, padding="same"),
+#             tf.keras.layers.BatchNormalization(),
+#             tf.keras.layers.ReLU(),
+            
+#             tf.keras.layers.Conv1D(filters=128, kernel_size=3, padding="same"),
+#             tf.keras.layers.BatchNormalization(),
+#             tf.keras.layers.ReLU(),
+            
+#             tf.keras.layers.GlobalAveragePooling1D(),
+#             tf.keras.layers.Dense(1, activation="sigmoid")
+#         ])
+
+# def build_cnn(input_shape):
+#     return tf.keras.Sequential([
+#         tf.keras.layers.Conv2D(16, (3, 3), activation='relu', input_shape=(1280, 23, 1)),
+#         tf.keras.layers.MaxPooling2D((2, 2)),
+        
+#         tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
+#         tf.keras.layers.MaxPooling2D((2, 2)),
+        
+#         tf.keras.layers.Flatten(),
+#         tf.keras.layers.Dense(32, activation='relu'),
+        
+#         tf.keras.layers.Dense(1, activation='sigmoid')
+#     ])
+
 def build_cnn(input_shape):
     """
     Builds a CNN model.
@@ -26,16 +68,22 @@ def build_cnn(input_shape):
             tf.keras.layers.Input(input_shape),
             
             tf.keras.layers.Conv1D(filters=128, kernel_size=8, padding="same"),
-            tf.keras.layers.BatchNormalization(),
+            # tf.keras.layers.BatchNormalization(),
             tf.keras.layers.ReLU(),
+            tf.keras.layers.Dropout(0.5),
             
-            tf.keras.layers.Conv1D(filters=256, kernel_size=5, padding="same"),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.ReLU(),
+            # tf.keras.layers.Conv1D(filters=4, kernel_size=16, padding="same"),
+            # tf.keras.layers.BatchNormalization(),
+            # tf.keras.layers.ReLU(),
+            # tf.keras.layers.Dropout(0.5),
             
-            tf.keras.layers.Conv1D(filters=128, kernel_size=3, padding="same"),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.ReLU(),
+            # tf.keras.layers.Conv1D(filters=128, kernel_size=8, padding="same"),
+            # tf.keras.layers.BatchNormalization(),
+            # tf.keras.layers.ReLU(),
+            
+            # tf.keras.layers.Conv1D(filters=128, kernel_size=3, padding="same"),
+            # tf.keras.layers.BatchNormalization(),
+            # tf.keras.layers.ReLU(),
             
             tf.keras.layers.GlobalAveragePooling1D(),
             tf.keras.layers.Dense(1, activation="sigmoid")

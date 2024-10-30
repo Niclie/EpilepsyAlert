@@ -4,7 +4,7 @@ from src.utils import constants
 from src.data_preprocessing.preprocess import make_dataset
 
 
-def get_dataset(patient_id, load_from_file = True, verbose = True):
+def get_dataset(patient_id, load_from_file=True, verbose=True, split=True):
     """
     Get the dataset for a given patient.
 
@@ -26,7 +26,7 @@ def get_dataset(patient_id, load_from_file = True, verbose = True):
             if verbose: print(f'Dataset for {patient.id} not found')
             return None
     else:
-        data = make_dataset(patient)
+        data = make_dataset(patient, split=split)
     
     if verbose:
         if 'train_data' in data.keys():

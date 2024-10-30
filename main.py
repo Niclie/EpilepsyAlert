@@ -9,35 +9,12 @@ from sklearn.metrics import classification_report, precision_score, recall_score
 
 
 def main():
-    # patient_id = 'chb01'
-    # # run(patient_id, model='mlp')
-    # m = load_and_valuate(patient_id, 'cnn')
-    
-    # f = open(f'{constants.RESULTS_FOLDER}/results.csv', 'a')
-    # f.write(f'{round(m[0], 2)}, {round(m[1], 2)}, {round(m[2], 2)}\n')
-    # f.close()
-    
-    
-    patients = ['chb01', 'chb02', 'chb03', 'chb04', 'chb05', 'chb06', 'chb07', 'chb08', 'chb09', 'chb10', 'chb11', 'chb12', 'chb13', 'chb14', 'chb15', 'chb16', 'chb17', 'chb18', 'chb19','chb20', 'chb21', 'chb22', 'chb23']
-    f = open(f'{constants.RESULTS_FOLDER}/results.csv', 'a')
-    # tot_acc = []
-    # tot_loss = []
-    for patient_id in patients:
-        m = load_and_valuate(patient_id, 'cnn')
-        if m is None: continue
-        f.write(f'{round(m[0], 2)}, {round(m[1], 2)}, {round(m[2], 2)}\n')
-    f.close()
-        
-    #     val = run(patient_id, 'lstm', model_path = f'{constants.MODELS_FOLDER}/test', plot_path = f'{constants.PLOTS_FOLDER}/test')
-    #     if val is None: continue
-    #     tot_acc.append(val['accuracy'])
-    #     tot_loss.append(val['loss'])
-    
-    # print(f'Mean accuracy: {np.mean(tot_acc)}')
-    # print(f'Mean loss: {np.mean(tot_loss)}')
+    patient_id = 'chb01'
+    run(patient_id, model='cnn')
+    load_and_valuate(patient_id, 'cnn')
     
 
-def load_and_valuate(patient_id, model_type,  model_path = constants.MODELS_FOLDER):
+def load_and_valuate(patient_id, model_type, model_path = constants.MODELS_FOLDER):
     dataset = run_preprocessing.get_dataset(patient_id)
     if dataset is None: return None
     model = keras.models.load_model(f'{model_path}/{model_type}/{patient_id}.keras')

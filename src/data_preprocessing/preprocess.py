@@ -34,8 +34,8 @@ def make_dataset(patient,
     if in_path == constants.DATA_FOLDER:
         in_path += f'/{patient.id}'
     
-    interictal_hour = int(interictal_hour)
-    preictal_hour = int(preictal_hour)
+    #interictal_hour = int(interictal_hour)
+    #preictal_hour = int(preictal_hour)
 
     if segment_size < 1:
         print(f'No dataset created for {patient.id}, segment_size should be >= 1\n')

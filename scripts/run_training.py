@@ -5,7 +5,7 @@ def run_training_mlp(training_data, label, out_path, file_name, patience = 50):
     check_folder(out_path)
     model = build_mlp(input_shape=training_data.shape[1:])
 
-    return __train(model, training_data, label, out_path, file_name, optimizer = 'rmsprop' , early_stopping = patience)
+    return __train(model, training_data, label, out_path, file_name, optimizer = 'adam' , early_stopping = patience)
 
 
 def run_training_cnn(training_data, label, out_path, file_name, patience = 50):

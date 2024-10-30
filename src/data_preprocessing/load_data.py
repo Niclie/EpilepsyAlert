@@ -1,9 +1,10 @@
 import os
 import re
-from src.utils import constants
 from datetime import datetime, timedelta
+from src.utils import constants
 from src.data_preprocessing.eeg_recording import EEGRec
 from src.data_preprocessing.patient import Patient
+from src.data_preprocessing.seizure import Seizure
 
 
 def convert_time(time_str, last_date, time_format = constants.TIME_FORMAT):
@@ -67,10 +68,10 @@ def load_summary_from_file(p_id,
         for file_info in file_info_pattern.findall(split):
             id, rec_start, rec_end, n_seizures = base_info_selector.search(file_info).group(1, 2, 3, 4)
             rec_start, rec_end = map(lambda t: convert_time(t, last_date), (rec_start, rec_end))
-            seizures = [(int(s_start), int(s_end)) for (s_start, s_end) in seizure_selector.findall(file_info)]
+            seizures = [Seizure(f'{id}_{i}', rec_start + timedelta(seconds=int(s_start)), rec_start + timedelta(seconds=int(s_end))) for i, (s_start, s_end) in enumerate(seizure_selector.findall(file_info), start=1)]
             channels = tuple(filter(lambda x: x != '-' , channels_selector.findall(split)))
 
-            rec_info.append(EEGRec(id, rec_start, rec_end, int(n_seizures), seizures, channels, sampling_rate))
+            rec_info.append(EEGRec(id, rec_start, rec_end, seizures, channels, sampling_rate))
             
             last_date = rec_end
             
