@@ -2,6 +2,33 @@ from datetime import timedelta
 from src.utils import constants
 import numpy as np
 import time
+import tsfel
+
+
+def preprocess_dataset(data, labels, fs, save=True, out_path=None, file_name=None):
+    """
+    Preprocess the dataset with the time series features extractor.
+    The features are extracted from the data and saved in a csv file, and the labels are saved in a npy file.
+    The features includes kurtois, mean, root mean square, skewness, standard deviation.
+
+    Args:
+        data (np.array): data to extract the features.
+        labels (np.array): labels of the data.
+        fs (int): sampling frequency.
+        save (bool, optional): whether to save the features and labels. Defaults to True.
+        out_path (str, optional): path to save the files. Defaults to None.
+        file_name (str, optional): name of the files to save. Defaults to None.
+
+    Returns:
+        pd.DataFrame: dataframe with the extracted features and np.array with the labels.
+    """
+    cfg = tsfel.get_features_by_domain(json_path='src/utils/features.json')
+    x = tsfel.time_series_features_extractor(cfg, data, fs=fs)
+    if save and out_path is not None:
+        x.to_csv(f'{out_path}/{file_name}_data.csv', index=False)
+        np.save(f'{out_path}/{file_name}_labels', labels)
+    
+    return x, labels
 
 
 def make_dataset(patient, 

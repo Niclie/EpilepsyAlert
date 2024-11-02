@@ -1,64 +1,47 @@
-from src.utils.debug_utils import check_folder
-from src.model.train_model import build_mlp, build_cnn, build_lstm, train
-
-def run_training_mlp(training_data, label, out_path, file_name, patience = 50):
-    check_folder(out_path)
-    model = build_mlp(input_shape=training_data.shape[1:])
-
-    return __train(model, training_data, label, out_path, file_name, optimizer = 'adam' , early_stopping = patience)
+from src.model.train_model import logistic_regression, decision_tree, cnn
 
 
-def run_training_cnn(training_data, label, out_path, file_name, patience = 50):
+def run_training_logistic_regression(training_data, label):
     """
-    Train a model with the given data and label.
+    Script to run training for logistic regression
 
     Args:
-        training_data (numpy.ndarray): the input training data.
-        label (numpy.ndarray): the corresponding labels for the training data.
-        out_path (str): the path to save the trained model.
-        patience (int, optional): patience for early stopping. Defaults to 50.
+        training_data (pd.DataFrame): Data to train the model
+        label (np.array): Label for the training data
 
     Returns:
-        dict: a dictionary containing the training history.
+        model: Trained model
     """
-    check_folder(out_path)
-    model = build_cnn(input_shape=training_data.shape[1:])
-
-    return __train(model, training_data, label, out_path, file_name, early_stopping = patience)
-
-
-def run_training_lstm(training_data, label, out_path, file_name, patience = 50):
+    return logistic_regression(training_data, label)
+    
+    
+def run_training_decision_tree(training_data, label):
     """
-    Train a model with the given data and label.
+    Script to run training for decision tree
 
     Args:
-        training_data (numpy.ndarray): the input training data.
-        label (numpy.ndarray): the corresponding labels for the training data.
-        out_path (str): the path to save the trained model.
-        patience (int, optional): patience for early stopping. Defaults to 50.
+        training_data (pd.DataFrame): Data to train the model
+        label (np.array): Label for the training data
 
     Returns:
-        dict: a dictionary containing the training history.
-    """
-    check_folder(out_path)
-    model = build_lstm(input_shape=training_data.shape[1:])
-
-    return __train(model, training_data, label, out_path, file_name, early_stopping = patience, optimizer= 'rmsprop')
-
-
-def __train(model, training_data, label, out_path, file_name, optimizer = 'adam', early_stopping = 50):
-    """
-    Train a model with the given data and label.
-
-    Args:
-        model (keras.Model): the model to train.
-        training_data (numpy.ndarray): the input training data.
-        label (numpy.ndarray): the corresponding labels for the training data.
-        out_path (str): the path to save the trained model.
-        early_stopping (int, optional): patience for early stopping. Defaults to 50.
-
-    Returns:
-        dict: a dictionary containing the training history.
+        model: Trained model
     """
     
-    return train(model, training_data, label, out_path, file_name, optimizer = optimizer, early_stopping = early_stopping)
+    return decision_tree(training_data, label)
+
+
+def run_training_cnn(training_data, label, out_path, file_name):
+    """
+    Script to run training for CNN
+
+    Args:
+        training_data (np.array): data to train the model
+        label (np.array): label for the training data
+        out_path (str): path to save the model
+        file_name (str): name of the model file
+
+    Returns:
+        history: training history
+    """
+    return cnn(training_data, label, out_path, file_name)
+    

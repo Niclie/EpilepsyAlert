@@ -2,17 +2,20 @@ from src.model.predict import predict
 from src.model.evaluate_model import evaluate_model
 
 
-def run_evaluation(model, data, labels):
+def run_evaluation(actuals, predicted_classes, predicted_proba):
     """
-    Run evaluation on the given model using the provided data and labels.
+    Run evaluation on the model predictions.
 
     Args:
-        model (keras.Model): the model to be evaluated.
-        data (numpy.ndarray): the input data for evaluation.
-        labels (numpy.ndarray): the corresponding labels for the input data.
+        actuals (np.array): array of actual values of the target variable
+        predicted_classes (np.array): array of predicted classes
+        predicted_proba (np.array): array of predicted probabilities
+
+    Returns:
+        tuple: a tuple containing the evaluation metrics
     """
 
-    return evaluate_model(model, data, labels)
+    return evaluate_model(actuals, predicted_classes, predicted_proba)
 
 
 def run_prediction(model, data):
