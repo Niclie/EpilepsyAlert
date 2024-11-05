@@ -9,7 +9,7 @@ import numpy as np
 
 def main():
     patient_id = 'chb01'
-    run(patient_id, model_type='cnn')
+    run(patient_id, model_type='logistic_regression')
 
 
 def run(patient_id, model_type, load_from_file=True, model_path=constants.MODELS_FOLDER, plot_path=constants.PLOTS_FOLDER):

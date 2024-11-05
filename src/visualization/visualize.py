@@ -70,8 +70,8 @@ def sklearn_save_learning_curve(model, x_train, y_train, path, file_name):
     train_scores_mean = np.mean(train_scores, axis=1)
     test_scores_mean = np.mean(test_scores, axis=1)
     
-    plt.plot(train_sizes, train_scores_mean, 'o-', color="r", label="Training Log-Loss")
-    plt.plot(train_sizes, test_scores_mean, 'o-', color="g", label="Cross-validation Log-Loss")
+    plt.plot(train_sizes, train_scores_mean, label="Training Log-Loss")
+    plt.plot(train_sizes, test_scores_mean, label="Cross-validation Log-Loss")
 
     plt.legend(loc="best")
     plt.savefig(f'{path}/{file_name}')
