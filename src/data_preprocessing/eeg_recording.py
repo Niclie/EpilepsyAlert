@@ -7,7 +7,7 @@ class EEGRec:
     Class to store the information of an EEG recording.
     """
 
-    def __init__(self, id, start, end, seizures, channels, sampling_rate):
+    def __init__(self, id, start, end, seizures, sampling_rate):
         """
         Initialize the EEG recording.
 
@@ -24,17 +24,6 @@ class EEGRec:
         self.start = start
         self.end = end
         self.seizures = seizures
-        
-        self.channels = []
-        a = Counter(channels)
-        for c in a.keys():
-            if a.get(c) == 1:
-                self.channels.append(c)
-                continue
-            
-            for i in range(a.get(c)):
-                self.channels.append(f'{c}-{i}')
-            
         self.sampling_rate = sampling_rate
 
 
@@ -72,11 +61,7 @@ class EEGRec:
         
         return np.around(data, 4)
         #return data
-
-
-    def __str__(self):
-        return f'ID: {self.id} Start: {self.start} End: {self.end} Seizures: {self.n_seizures}: {self.seizures}'
-
-
-    def __repr__(self):
-        return self.__str__()
+        
+    def __str__(self) -> str:
+        seizures_str = '\n\t'.join(map(str, self.seizures))
+        return f'{self.id}: {self.start} -> {self.end}{'\n\t' + seizures_str if self.seizures else ''}'

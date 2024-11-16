@@ -16,3 +16,5 @@ class Seizure:
         self.start = start
         self.end = end
         
+    def __str__(self) -> str:
+        return f'{self.id}: {self.start} -> {self.end}'
