@@ -1,32 +1,31 @@
 import tensorflow as tf
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
 
 
-def logistic_regression(training_data, training_label):
-    model = LogisticRegression(solver='liblinear')
-    model.fit(training_data, training_label)
-    
-    return model
+def cnn(training_data, training_label, out_path, file_name, epochs=500, batch_size=64, early_stopping=50):
+    """
+    Train a Convolutional Neural Network model on the given data.
 
-    
-def decision_tree(training_data, training_label):
-    model = DecisionTreeClassifier(max_depth=3)    
-    model.fit(training_data, training_label)
-    
-    return model
+    Args:
+        training_data (np.array): Data to train the model on.
+        training_label (np.array): Labels for the training data.
+        out_path (str): Path to save the model.
+        file_name (str): Name of the file to save the model.
+        epochs (int, optional): _description_. Defaults to 500.
+        batch_size (int, optional): _description_. Defaults to 64.
+        early_stopping (int, optional): _description_. Defaults to 50.
 
-
-def cnn(training_data, training_label, out_path, file_name, epochs=500, batch_size=32, early_stopping=50):
+    Returns:
+        history: Training history.
+    """
     model = tf.keras.models.Sequential([
             tf.keras.layers.Input(training_data[0].shape),
             
-            tf.keras.layers.Conv1D(filters=128, kernel_size=8, padding="same"),
+            tf.keras.layers.Conv1D(filters=64, kernel_size=3, padding="same"),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.ReLU(),
             tf.keras.layers.Dropout(0.3),
             
-            tf.keras.layers.Conv1D(filters=4, kernel_size=16, padding="same"),
+            tf.keras.layers.Conv1D(filters=4, kernel_size=32, padding="same"),
             tf.keras.layers.BatchNormalization(),
             tf.keras.layers.ReLU(),
             
@@ -46,9 +45,9 @@ def cnn(training_data, training_label, out_path, file_name, epochs=500, batch_si
     ]
 
     model.compile(
-        optimizer = 'adam',
-        loss = "binary_crossentropy",
-        metrics = ["accuracy"]
+        optimizer='adam',
+        loss = 'binary_crossentropy',
+        metrics = ['accuracy']
     )
 
     history = model.fit(

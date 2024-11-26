@@ -5,6 +5,7 @@ from src.utils.constants import *
 from src.data_preprocessing.eeg_recording import EEGRec
 from src.data_preprocessing.patient import Patient
 from src.data_preprocessing.seizure import Seizure
+from mne.io import read_raw_edf
 
 
 def convert_time(time_str, reference_time=None):
@@ -60,7 +61,7 @@ def load_summary_from_file(p_id, path=None):
             for i, (s_start, s_end) in enumerate(seizure_details[s_count:s_count + n_seizures], 1)
         ]
         
-        rec_info.append(EEGRec(rec_id, rec_start, rec_end, seizures, sampling_rate))
+        rec_info.append(EEGRec(rec_id, rec_start, rec_end, seizures, int(sampling_rate)))
         
         s_count += n_seizures
         last_date = rec_end
@@ -84,3 +85,24 @@ def load_summaries_from_folder(path=None, exclude=None):
     p_ids = next(os.walk(path))[1]
 
     return [load_summary_from_file(id) for id in p_ids if id not in exclude]
+
+
+def load_eeg_data(path, start_seconds=0, end_seconds=None):
+    """
+    Retrieve EEG data from a specified file path.
+    
+    Args:
+        path (str, optional): the file path to retrieve the data from.
+        start_seconds (int, optional): starting time in seconds to retrieve the data from. Defaults to 0.
+        end_seconds (int, optional): ending time in seconds to retrieve the data from. Defaults to None.
+
+    Returns:
+        numpy.ndarray: EEG data.
+    """
+    
+    raw = read_raw_edf(path, verbose='ERROR', preload=True)
+    raw.pick(CHANNELS)
+    data = raw.get_data(tmin=start_seconds, tmax=end_seconds, units='uV').T
+    raw.close()
+    
+    return data
