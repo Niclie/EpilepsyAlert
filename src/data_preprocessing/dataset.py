@@ -104,8 +104,29 @@ class Dataset:
 
         return data
     
+    def __standardize_eeg(self, data, batch_size=100):
+        """
+        Standardizes EEG data for each channel.
+        This method standardizes the EEG data by subtracting the mean and dividing by the standard deviation for each window and channel.
+        The standardization is performed in batches to handle large datasets efficiently.
+        Args:
+            data (numpy array): EEG data of shape (n_windows, n_samples, n_channels).
+            batch_size (int, optional): Batch size for standardization. Defaults to 100.
+        Returns:
+            numpy array: Standardized data with the same shape as the input.
+        """
+        standardized_data = np.zeros_like(data)
+        for start in range(0, len(data), batch_size):
+            end = start + batch_size
+            batch = data[start:end]
+            mean = batch.mean(axis=1, keepdims=True)  # Media per finestra e canale
+            std = batch.std(axis=1, keepdims=True)    # Deviazione standard per finestra e canale
+            standardized_data[start:end] = (batch - mean) / (std + 1e-8)  # Evita divisione per zero
+        
+        return standardized_data
     
-    def __split_data(self, dataset_interictal, dataset_preictal, train_size=0.8):
+    
+    def __split_data(self, dataset_interictal, dataset_preictal, train_size=0.8, standardize=True):
         """
         Split the dataset into train and test sets.
 
@@ -121,6 +142,9 @@ class Dataset:
         n_preictal = len(dataset_preictal)
         
         data = np.concatenate([dataset_interictal, dataset_preictal])
+        
+        if standardize: data = self.__standardize_eeg(data)
+        
         labels = np.concatenate([np.zeros(n_interictal), np.ones(n_preictal)])
         
         train_data, test_data, train_labels, test_labels = train_test_split(
@@ -211,7 +235,7 @@ class Dataset:
         Returns:
             tuple: Tuple containing the start, end and next reference datetimes.
         """
-        end = self.__check_datetime(datetime_ref - timedelta(seconds=gap), rec_index, False)[0]
+        end, rec_index = self.__check_datetime(datetime_ref - timedelta(seconds=gap), rec_index, False)
         
         if phase_type == 'preictal':
             diff = (datetime_ref - timedelta(seconds=gap) - end).total_seconds()

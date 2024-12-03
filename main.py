@@ -9,10 +9,13 @@ import numpy as np
 
 def main():
     #chb01, chb02, chb03, chb04, chb06
-    # patient_id = 'chb01'
-    # run(patient_id)
-    for patient_id in PATIENTS:
-        run(patient_id)
+    patient_id = 'chb01'
+    run(patient_id)
+    # for patient_id in PATIENTS[8:]:
+    #     try:
+    #         run(patient_id, load_from_file=False)
+    #     except AttributeError:
+    #         continue
 
 
 def run(patient_id, load_from_file=True):
