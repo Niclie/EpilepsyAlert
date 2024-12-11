@@ -2,9 +2,9 @@ import os
 import re
 from datetime import datetime, timedelta
 from src.utils.constants import *
-from src.data_preprocessing.eeg_recording import EEGRec
-from src.data_preprocessing.patient import Patient
-from src.data_preprocessing.seizure import Seizure
+from src.preprocessing.eeg_recording import EEGRec
+from src.preprocessing.patient import Patient
+from src.preprocessing.seizure import Seizure
 from mne.io import read_raw_edf
 
 
@@ -99,11 +99,10 @@ def load_eeg_data(path, start_seconds=0, end_seconds=None):
     Returns:
         numpy.ndarray: EEG data.
     """
-    
-    raw = read_raw_edf(path, verbose='ERROR', preload=True)
-    raw.pick(CHANNELS)
+
+    raw = read_raw_edf(path, verbose='ERROR', preload=True, include=CHANNELS, units='uV')
     raw.filter(l_freq=0.5, h_freq=45)
-    data = raw.get_data(tmin=start_seconds, tmax=end_seconds, units='uV').T
+    data = raw.get_data(tmin=start_seconds, tmax=end_seconds).T
     raw.close()
-    
+
     return data

@@ -1,9 +1,33 @@
 from src.utils.constants import *
-from src.data_preprocessing.load_data import load_eeg_data
+from src.preprocessing.load_data import load_eeg_data
 from datetime import timedelta
 import numpy as np
 import time
 from sklearn.model_selection import train_test_split
+
+
+def load_dataset(patient_id):
+    """
+    Load the dataset from a file.
+
+    Args:
+        patient_id (str): The patient identifier.
+
+    Returns:
+        dict: Dictionary containing the dataset.
+
+    Raises:
+        FileNotFoundError: If the dataset file is not found.
+    """
+
+    try:
+        npz = np.load(f'{DATASETS_FOLDER}/{patient_id}.npz')
+        data = {k: npz.get(k) for k in npz}
+        npz.close()
+
+        return data
+    except FileNotFoundError:
+        raise FileNotFoundError(f'Dataset for {patient_id} not found')
 
 
 class Dataset:
@@ -11,7 +35,7 @@ class Dataset:
     Class to create a dataset from a patient's recordings.
     """
     
-    def __init__(self, patient, in_path=None, interictal_hour=4, preictal_hour=1, segment_size=5, balance=True, split=True, save=True, out_path=None):
+    def __init__(self, patient, in_path=None, interictal_hour=4, preictal_hour=1, segment_size=5, balance=True, standardize=True, split=True, save=True, out_path=None):
         """
         Initialize the dataset class.
 
@@ -22,6 +46,7 @@ class Dataset:
             preictal_hour (int, optional): Number of hours to consider for the preictal phase. Defaults to 1.
             segment_size (int, optional): Size of the segments in seconds. Defaults to 5.
             balance (bool, optional): Whether to balance the dataset. Defaults to True.
+            standardize (bool, optional): Whether to standardize the dataset. Defaults to True.
             split (bool, optional): Whether to split the dataset into train and test sets. Defaults to True.
             save (bool, optional): Whether to save the dataset to a file. Defaults to True.
             out_path (str, optional): Path to the output data directory. Defaults to None.
@@ -32,14 +57,15 @@ class Dataset:
         self.preictal_hour = preictal_hour
         self.segment_size = segment_size
         self.balance = balance
+        self.standardize = standardize
         self.split = split
         self.save = save
         self.out_path = out_path or f'{DATASETS_FOLDER}'
         
         self.recordings = patient.recordings
         self.sampling_rate = self.recordings[0].sampling_rate
-        
-        
+
+
     def make_dataset(self):
         """
         Create the dataset from the patient's recordings.
@@ -56,11 +82,11 @@ class Dataset:
                 try:
                     start_preictal, end_preictal, next_ref = self.__get_phase_datetimes(seizure.start, rec_index=i)
                     start_interictal, end_interictal = self.__get_phase_datetimes(start_preictal, next_ref, 'interictal')
-                    
+
                     if not(start_interictal <= prev_seizure_end <= end_preictal):                        
                         data_preictal = self.__retrive_data(start_preictal, end_preictal, i)
                         data_interictal = self.__retrive_data(start_interictal, end_interictal, next_ref)
-                        
+
                         data_preictal = self.__segment_data(data_preictal)
                         data_interictal = self.__segment_data(data_interictal)
                         
@@ -70,26 +96,26 @@ class Dataset:
                     print(f'{seizure.id}: {err}')
                     
                 prev_seizure_end = seizure.end
-        
-        if len(dataset_preictal) + len(dataset_interictal) < 1:
-            print(f'No dataset created for {self.patient.id}\n')
-            return None
-        
+
+        if not dataset_preictal and not dataset_interictal:
+            raise ValueError(f'No dataset created for {self.patient.id}')
+
         if self.balance:
-            dataset_interictal = self.__balance_dataset(dataset_interictal, dataset_preictal)
-                
+            dataset_interictal = self.__balance_data(dataset_interictal, dataset_preictal)
+
+        labels = np.concatenate([np.zeros(len(dataset_interictal)), np.ones(len(dataset_preictal))])
+        data = dataset_interictal + dataset_preictal
+        data = self.__standardize_data(data) if self.standardize else data
+
         if self.split:
-            train_data, train_labels, test_data, test_labels = self.__split_data(dataset_interictal, dataset_preictal)
+            train_data, train_labels, test_data, test_labels = self.__split_data(data, labels)
             data = {'train_data': train_data, 
                     'train_labels': train_labels, 
                     'test_data': test_data, 
                     'test_labels': test_labels
             }
         else:
-            dataset = np.concatenate([dataset_interictal, dataset_preictal])
-            labels = np.concatenate([np.zeros(len(dataset_interictal)), np.ones(len(dataset_preictal))])
-            
-            data = {'data': dataset,
+            data = {'data': data,
                     'labels': labels
             }
         
@@ -103,50 +129,33 @@ class Dataset:
             print(f'File created in {time.time() - start_time:.2f} seconds\n')
 
         return data
-    
-    def __standardize_eeg(self, data, batch_size=100):
+
+    def __standardize_data(self, data):
         """
-        Standardizes EEG data for each channel.
-        This method standardizes the EEG data by subtracting the mean and dividing by the standard deviation for each window and channel.
-        The standardization is performed in batches to handle large datasets efficiently.
+        Standardizes EEG data for each channel. This method standardizes the EEG data by applying the z-score normalization.
         Args:
-            data (numpy array): EEG data of shape (n_windows, n_samples, n_channels).
-            batch_size (int, optional): Batch size for standardization. Defaults to 100.
+            data (np.array): EEG data with shape (n_segments, n_channels, n_samples).
         Returns:
-            numpy array: Standardized data with the same shape as the input.
+            np.array: Standardized data with the same shape as the input.
         """
-        standardized_data = np.zeros_like(data)
-        for start in range(0, len(data), batch_size):
-            end = start + batch_size
-            batch = data[start:end]
-            mean = batch.mean(axis=1, keepdims=True)  # Media per finestra e canale
-            std = batch.std(axis=1, keepdims=True)    # Deviazione standard per finestra e canale
-            standardized_data[start:end] = (batch - mean) / (std + 1e-8)  # Evita divisione per zero
-        
+        mean = np.mean(data, axis=1, keepdims=True)
+        std = np.std(data, axis=1, keepdims=True)
+        standardized_data = (data - mean) / (std + 1e-8)
+
         return standardized_data
-    
-    
-    def __split_data(self, dataset_interictal, dataset_preictal, train_size=0.8, standardize=True):
+
+
+    def __split_data(self, data, labels, train_size=0.8):
         """
         Split the dataset into train and test sets.
 
         Args:
-            dataset_interictal (list): List of interictal data.
-            dataset_preictal (list): List of preictal data.
+            data (np.array): The data to split.
             train_size (float, optional): Size of the train set. Defaults to 0.8.
 
         Returns:
             tuple: Tuple containing the train and test sets and their labels.
         """
-        n_interictal = len(dataset_interictal)
-        n_preictal = len(dataset_preictal)
-        
-        data = np.concatenate([dataset_interictal, dataset_preictal])
-        
-        if standardize: data = self.__standardize_eeg(data)
-        
-        labels = np.concatenate([np.zeros(n_interictal), np.ones(n_preictal)])
-        
         train_data, test_data, train_labels, test_labels = train_test_split(
             data, labels, train_size=train_size, stratify=labels, random_state=35
         )
@@ -154,7 +163,7 @@ class Dataset:
         return train_data, train_labels, test_data, test_labels
     
     
-    def __balance_dataset(self, dataset_interictal, dataset_preictal):
+    def __balance_data(self, dataset_interictal, dataset_preictal):
         """
         Balance the dataset by selecting a random sample of the interictal data.
 
@@ -166,9 +175,8 @@ class Dataset:
             list: List of balanced interictal data.
         """
         random_index = np.random.choice(len(dataset_interictal), len(dataset_preictal), replace=False)
-        balanced_dataset_interictal = [dataset_interictal[i] for i in random_index]
-        
-        return balanced_dataset_interictal
+
+        return [dataset_interictal[i] for i in random_index]
     
         
     def __segment_data(self, data):

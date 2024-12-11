@@ -1,6 +1,3 @@
-from collections import defaultdict
-
-
 class Patient:
     """
     Class to represent a patient.

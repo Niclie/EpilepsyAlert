@@ -1,39 +1,31 @@
-import numpy as np
-from src.data_preprocessing.load_data import load_summary_from_file
-from src.data_preprocessing.dataset import Dataset
-from src.utils.constants import DATASETS_FOLDER
+from src.preprocessing.load_data import load_summary_from_file
+from src.preprocessing.dataset import Dataset, load_dataset
 
 
-def get_dataset(patient_id, load_from_file=True, verbose=True, split=True):
+def run_preprocessing(patient_id, load_from_file=True, verbose=True, split=True):
     """
-    Get the dataset for a given patient.
+    Run the preprocessing pipeline for a given patient_id.
 
     Args:
-        patient_id (str): the ID of the patient.
-        load_from_file (bool, optional): whether to load the dataset from a file. Defaults to True.
-        verbose (bool, optional): whether to print information about the dataset. Defaults to True.
-        split (bool, optional): whether to split the dataset into training and test sets. Defaults to True
+        patient_id (str): Patient identifier.
+        load_from_file (bool, optional): Whether to load the dataset from a file. Defaults to True.
+        verbose (bool, optional): Whether to print the size of the dataset. Defaults to True.
+        split (bool, optional): Whether to split the dataset into training and test sets. Defaults to True.
 
     Returns:
-        dict: the dataset for the patient.
+        dict: Dictionary with the dataset.
     """
     if load_from_file:
-        try:
-            npz = np.load(f'{DATASETS_FOLDER}/{patient_id}.npz')
-            data = {k: npz.get(k) for k in npz}
-            npz.close()
-        except:
-            if verbose: print(f'Dataset for {patient_id} not found')
-            return None
+        data = load_dataset(patient_id)
     else:
         patient = load_summary_from_file(patient_id)
         data = Dataset(patient, split=split).make_dataset()
-    
+
     if verbose:
         if 'train_data' in data.keys():
-            print(f'Training data shape: {data['train_data'].shape}')
-            print(f'Test data shape: {data['test_data'].shape}')
+            print(f'Training data size: {len(data['train_data'])}')
+            print(f'Test data size: {len(data['test_data'])}')
         else:
-            print(f'Data shape: {data['data'].shape}')
+            print(f'Data size: {len(data['data'])}')
 
     return data
