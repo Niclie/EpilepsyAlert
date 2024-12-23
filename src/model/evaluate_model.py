@@ -25,9 +25,9 @@ def evaluate_model(actuals, predicted_classes, predicted_proba):
     accuracy = accuracy_score(actuals, predicted_classes)
 
     return {
-        'precision': f'{precision:.2f}',
-        'recall': f'{recall:.2f}',
-        'f1': f'{f1:.2f}',
-        'auc': f'{auc:.2f}',
-        'accuracy': f'{accuracy:.2f}'
+        'Precision': f'{precision:.2f}',
+        'Recall': f'{recall:.2f}',
+        'F1': f'{f1:.2f}',
+        'AUC': f'{auc:.2f}',
+        'Accuracy': f'{accuracy:.2f}'
     }
