@@ -11,10 +11,10 @@ def log_metrics(patient_id, model, n_training, n_test, metrics, file_path=f'{con
 
     Args:
         patient_id (str): patient id.
+        model (str): model name.
         n_training (int): number of training examples.
         n_test (int): number of test examples.
-        accuracy (float): accuracy of the model.
-        loss (float): loss of the model.
+        metrics (dictionary): dictionary containing the metrics of the model.
         file_path (str, optional): path to the csv file. Defaults to f'{constants.RESULTS_FOLDER}/results.csv'.
     """
     if not os.path.isfile(file_path):
