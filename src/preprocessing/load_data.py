@@ -104,5 +104,8 @@ def load_eeg_data(path, start_seconds=0, end_seconds=None):
     raw.filter(l_freq=0.5, h_freq=45)
     data = raw.get_data(tmin=start_seconds, tmax=end_seconds).T
     raw.close()
+    #
+    # raw = read_raw_edf(path, verbose='ERROR', include=CHANNELS, units='uV')
+    # data = raw.get_data(tmin=start_seconds, tmax=end_seconds).T
 
     return data

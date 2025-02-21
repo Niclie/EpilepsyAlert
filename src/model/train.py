@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 class NeuralNetwork(nn.Module):
     def __init__(self):
         super().__init__()
@@ -45,7 +44,6 @@ class NeuralNetwork(nn.Module):
 
         return x
 
-
 def train(model, dataloader, epochs, device, verbose=True):
     loss_fn = nn.BCELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters())
@@ -83,25 +81,31 @@ def test(model, dataloader, device):
 
     model.eval()
     test_loss, correct = 0, 0
+    tp, fp = 0, 0  # True Positives, False Positives
+
     with torch.no_grad():
         for X, y in dataloader:
             X, y = X.to(device), y.to(device)
             output = model(X).squeeze()
+
             test_loss += loss_fn(output, y).item()
             predicted = (output.data >= 0.5).float()
             correct += (predicted == y).sum().item()
 
+            tp += ((predicted == 1) & (y == 1)).sum().item()
+            fp += ((predicted == 1) & (y == 0)).sum().item()
     test_loss /= len(dataloader)
     correct /= len(dataloader.dataset)
+    precision_1 = tp / (tp + fp) if (tp + fp) > 0 else 0  # Precision for class 1
 
-    return test_loss, correct
+    return test_loss, correct, precision_1
 
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
 
-def set_weights(net: NeuralNetwork, parameters):
+def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
     net.load_state_dict(state_dict, strict=True)

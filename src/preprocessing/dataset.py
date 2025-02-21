@@ -21,7 +21,8 @@ def load_dataset(patient_id):
     """
 
     try:
-        npz = np.load(f'{DATASETS_FOLDER}/{patient_id}.npz')
+        #npz = np.load(f'{DATASETS_FOLDER}/{patient_id}.npz')
+        npz = np.load(f'data/converted (filtered)/{patient_id}.npz')
         data = {k: npz.get(k) for k in npz}
         npz.close()
 

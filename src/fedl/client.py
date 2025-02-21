@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import TensorDataset, DataLoader
-from preprocessing.dataset import load_dataset
+from src.preprocessing.dataset import load_dataset
 from src.model.train import get_weights, set_weights, train, test, NeuralNetwork
 from flwr.client import NumPyClient
 
@@ -31,10 +31,9 @@ class FlowerClient(NumPyClient):
 
 
 
-HOSPITAL = {0: 'chb01', 1: 'chb02', 2: 'chb03', 3: 'chb04', 4: 'chb05', 5: 'chb06', 6: 'chb07'} # HOSPITAL_A
+# HOSPITAL = {0: 'chb01', 1: 'chb02', 2: 'chb03', 3: 'chb04', 4: 'chb05', 5: 'chb06', 6: 'chb07'} # HOSPITAL_A
 # HOSPITAL = {0: 'chb08', 1: 'chb09', 2: 'chb10', 3: 'chb11', 4: 'chb14', 5: 'chb15'} # HOSPITAL_B
-# HOSPITAL = {0: 'chb16', 1: 'chb17', 2: 'chb18', 3: 'chb19', 4: 'chb20', 5: 'chb21', 6: 'chb22'} # HOSPITAL_C
-
+HOSPITAL = {0: 'chb16', 1: 'chb17', 2: 'chb18', 3: 'chb19', 4: 'chb20', 5: 'chb21', 6: 'chb22'} # HOSPITAL_C
 def client_fn(context):
     patient_id = HOSPITAL.get(context.node_config['partition-id'])
     print(patient_id)
@@ -68,5 +67,6 @@ def client_fn(context):
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
     net = NeuralNetwork()
+    #net.load_state_dict(torch.load("generic_model_weights.pth"))
 
     return FlowerClient(net, train_loader, test_loader, local_epochs).to_client()

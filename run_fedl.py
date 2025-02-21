@@ -11,7 +11,7 @@ def start_simulation():
     run_simulation(
         server_app=ServerApp(server_fn=server_fn),
         client_app=ClientApp(client_fn=client_fn),
-        num_supernodes=7, #7
+        num_supernodes=7, #Ospedale A: 7, Ospedale B: 6, Ospedale C: 7
         backend_config=backend_config
     )
 
